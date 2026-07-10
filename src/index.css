@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-fg: #ffffff;
+  --primary-soft: #eff6ff;
+  --primary-soft-fg: #2563eb;
+  --fg: #09090b;
+  --muted-fg: #71717a;
+  --bg: #f4f4f5;
+  --appbg: #f6f6f7;
+  --card: #ffffff;
+  --border: #e4e4e7;
+  --muted: #f4f4f5;
+  --toolbar: rgba(255,255,255,0.85);
+  --danger: #ef4444;
+  --sidebar-bg: #ffffff;
+  --input-bg: #ffffff;
+}
+
+.dark {
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-fg: #ffffff;
+  --primary-soft: #1e3a5f;
+  --primary-soft-fg: #93c5fd;
+  --fg: #fafafa;
+  --muted-fg: #a1a1aa;
+  --bg: #09090b;
+  --appbg: #0a0a0b;
+  --card: #18181b;
+  --border: #27272a;
+  --muted: #18181b;
+  --toolbar: rgba(9,9,11,0.85);
+  --danger: #f87171;
+  --sidebar-bg: #111113;
+  --input-bg: #18181b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Geist', -apple-system, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 0; height: 0; }
+
+input, select, button, textarea { font-family: inherit; }
+input, select { color-scheme: light dark; }
+
+#root {
+  min-height: 100svh;
+}

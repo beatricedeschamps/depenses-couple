@@ -20,7 +20,7 @@ const CURRENT_YEAR = new Date().getFullYear()
 
 const FREQ_OPTIONS: { value: Frequency; label: string }[] = [
   { value: 'semaine', label: 'Par semaine' },
-  { value: 'deux_semaines', label: 'Aux 2 semaines' },
+  { value: 'deux_semaines', label: 'Aux 2 sem.' },
   { value: 'mois', label: 'Par mois' },
 ]
 
@@ -37,8 +37,8 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
   // Continue fields
   const [frequency, setFrequency] = useState<Frequency>('mois')
   const [startDate, setStartDate] = useState(TODAY)
+  const [continueAmountStr, setContinueAmountStr] = useState('')
   const [rates, setRates] = useState<PriceRate[]>([{ from: TODAY, amount: 0 }])
-  // New rate form
   const [newRateFrom, setNewRateFrom] = useState(TODAY)
   const [newRateAmount, setNewRateAmount] = useState('')
   const [showAddRate, setShowAddRate] = useState(false)
@@ -62,6 +62,11 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
       setFrequency(recurring.frequency ?? 'mois')
       setStartDate(recurring.start_date ?? TODAY)
       setRates(recurring.rates.length > 0 ? recurring.rates : [{ from: TODAY, amount: 0 }])
+      const currentRateRows = recurring.rates.filter(r => r.from <= TODAY)
+      const currentAmt = currentRateRows.length > 0
+        ? currentRateRows[currentRateRows.length - 1].amount
+        : (recurring.rates[0]?.amount ?? 0)
+      setContinueAmountStr(String(currentAmt).replace('.', ','))
       setOccurrences(recurring.occurrences ?? 1)
       setYear(recurring.year ?? CURRENT_YEAR)
       setSeriePrice(recurring.rates[0] ? String(recurring.rates[0].amount).replace('.', ',') : '')
@@ -73,6 +78,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
       setSplit('half')
       setFrequency('mois')
       setStartDate(TODAY)
+      setContinueAmountStr('')
       setRates([{ from: TODAY, amount: 0 }])
       setOccurrences(1)
       setYear(CURRENT_YEAR)
@@ -91,6 +97,10 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
       const amt = parseFloat(seriePrice.replace(',', '.'))
       return [{ from: `${year}-01-01`, amount: isNaN(amt) ? 0 : Math.round(amt * 100) / 100 }]
     }
+    if (!recurring) {
+      const amt = parseFloat(continueAmountStr.replace(',', '.'))
+      return [{ from: startDate, amount: isNaN(amt) ? 0 : Math.round(amt * 100) / 100 }]
+    }
     return rates
   }
 
@@ -106,6 +116,9 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
     if (type === 'serie') {
       const p = parseFloat(seriePrice.replace(',', '.'))
       if (isNaN(p) || p < 0) { setError('Le prix est invalide.'); return }
+    } else if (!recurring) {
+      const amt = parseFloat(continueAmountStr.replace(',', '.'))
+      if (isNaN(amt) || amt < 0) { setError('Le montant est invalide.'); return }
     } else {
       if (finalRates.some(r => r.amount < 0)) { setError('Un montant est invalide.'); return }
     }
@@ -173,45 +186,71 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
     setRates(prev => prev.filter(r => r.from !== from))
   }
 
+  const title = recurring ? 'Modifier' : 'Nouvelle récurrente'
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose} />
 
-      <div className="relative w-full max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden" style={{ background: 'var(--card)', maxHeight: '92svh' }}>
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+      <div
+        className="relative w-full sm:max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
+        style={{ background: 'var(--card)', maxHeight: '92svh' }}
+      >
+        {/* Mobile handle */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
         </div>
 
-        <div className="flex items-center justify-between px-5 pt-2 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
-          <button onClick={onClose} className="text-sm font-medium" style={{ color: 'var(--primary)' }}>Annuler</button>
-          <h2 className="text-base font-semibold" style={{ color: 'var(--fg)' }}>
-            {recurring ? 'Modifier' : 'Nouvelle récurrente'}
-          </h2>
-          <button onClick={handleSave} disabled={saving} className="text-sm font-semibold" style={{ color: saving ? 'var(--muted-fg)' : 'var(--primary)' }}>
-            {saving ? '…' : 'Enregistrer'}
+        {/* Header */}
+        <div
+          className="flex items-center px-5 sm:px-6 pt-2 sm:pt-5 pb-3 sm:pb-4 border-b flex-shrink-0"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          {/* Mobile: Annuler left */}
+          <button
+            className="sm:hidden text-sm font-medium"
+            style={{ color: 'var(--primary)', width: 64 }}
+            onClick={onClose}
+          >
+            Annuler
           </button>
+          {/* Title */}
+          <h2
+            className="flex-1 text-center sm:text-left text-base sm:text-xl font-bold"
+            style={{ color: 'var(--fg)' }}
+          >
+            {title}
+          </h2>
+          {/* Desktop: X close */}
+          <button
+            className="hidden sm:flex w-8 h-8 rounded-full items-center justify-center text-base font-medium"
+            style={{ background: 'var(--muted)', color: 'var(--muted-fg)' }}
+            onClick={onClose}
+          >
+            ✕
+          </button>
+          {/* Mobile spacer */}
+          <div className="sm:hidden" style={{ width: 64 }} />
         </div>
 
-        <div className="overflow-y-auto flex flex-col gap-5 p-5 pb-8">
-          {/* Type toggle */}
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex flex-col gap-5 p-5 sm:p-6 flex-1">
+
+          {/* Type toggle — add mode only */}
           {!recurring && (
-            <div className="flex rounded-xl overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
-              {(['continue', 'serie'] as RecurringType[]).map(t => (
-                <button
-                  key={t}
-                  onClick={() => setType(t)}
-                  className="flex-1 py-2.5 text-sm font-semibold transition-all"
-                  style={type === t
-                    ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                    : { background: 'var(--muted)', color: 'var(--muted-fg)' }
-                  }
-                >
-                  {t === 'continue' ? 'Continue' : 'Série'}
-                </button>
-              ))}
-            </div>
+            <Seg
+              options={[
+                { value: 'continue' as RecurringType, label: 'Continue' },
+                { value: 'serie' as RecurringType, label: 'Série' },
+              ]}
+              value={type}
+              onChange={setType}
+            />
           )}
 
           {/* Description */}
@@ -226,44 +265,21 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
             />
           </Field>
 
-          {/* Category */}
+          {/* Category — icon only */}
           <Field label="Catégorie">
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               {categories.map(cat => (
                 <button
                   key={cat.id}
                   onClick={() => setCategoryId(cat.id === categoryId ? null : cat.id)}
-                  className="flex flex-col items-center gap-1 flex-shrink-0 rounded-xl p-2.5"
+                  className="flex-shrink-0 rounded-xl p-3 transition-all"
                   style={cat.id === categoryId
-                    ? { background: 'var(--primary-soft)', color: 'var(--primary)', minWidth: 60 }
-                    : { background: 'var(--muted)', color: 'var(--muted-fg)', minWidth: 60 }
+                    ? { background: 'var(--primary-soft)', color: 'var(--primary)' }
+                    : { background: 'var(--muted)', color: 'var(--muted-fg)' }
                   }
+                  title={cat.name}
                 >
-                  <Icon id={cat.icon} size={20} filled={cat.id === categoryId} />
-                  <span className="text-[10px] font-medium text-center leading-tight" style={{ maxWidth: 56 }}>{cat.name}</span>
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          {/* Payer + Split */}
-          <Field label="Payé par">
-            <div className="flex gap-2">
-              {(['bea', 'phil'] as Person[]).map(p => (
-                <button key={p} onClick={() => setPayer(p)} className="flex-1 py-3 rounded-xl text-sm font-semibold"
-                  style={payer === p ? { background: 'var(--primary)', color: 'var(--primary-fg)' } : { background: 'var(--muted)', color: 'var(--muted-fg)' }}>
-                  {p === 'bea' ? 'Béa' : 'Phil'}
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          <Field label="Partage">
-            <div className="flex gap-2">
-              {([['half', '50 / 50'], ['phil', 'Phil seul'], ['bea', 'Béa seule']] as [Split, string][]).map(([s, label]) => (
-                <button key={s} onClick={() => setSplit(s)} className="flex-1 py-3 rounded-xl text-sm font-semibold"
-                  style={split === s ? { background: 'var(--primary)', color: 'var(--primary-fg)' } : { background: 'var(--muted)', color: 'var(--muted-fg)' }}>
-                  {label}
+                  <Icon id={cat.icon} size={22} filled={cat.id === categoryId} />
                 </button>
               ))}
             </div>
@@ -273,71 +289,79 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
           {type === 'continue' && (
             <>
               <Field label="Fréquence">
-                <div className="flex flex-col gap-1">
-                  {FREQ_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setFrequency(opt.value)}
-                      className="flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium"
-                      style={frequency === opt.value
-                        ? { background: 'var(--primary-soft)', color: 'var(--primary)' }
-                        : { background: 'var(--muted)', color: 'var(--fg)' }
-                      }
+                <Seg options={FREQ_OPTIONS} value={frequency} onChange={setFrequency} />
+              </Field>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Facturé à partir de">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="w-full rounded-xl px-4 py-3 text-base outline-none border"
+                    style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+                  />
+                </Field>
+                <Field label="Montant / période ($)">
+                  {recurring ? (
+                    <div
+                      className="w-full rounded-xl px-4 py-3 text-base border"
+                      style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                     >
-                      {opt.label}
-                      {frequency === opt.value && (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </Field>
-
-              <Field label="Date de début">
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                  className="w-full rounded-xl px-4 py-3 text-base outline-none border"
-                  style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }} />
-              </Field>
-
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>Historique des prix</span>
-                  <button onClick={() => setShowAddRate(v => !v)} className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>
-                    + Ajouter un prix daté
-                  </button>
-                </div>
-                <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-                  {[...rates].sort((a, b) => b.from.localeCompare(a.from)).map((r, i, arr) => (
-                    <div key={r.from} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <div className="flex-1">
-                        <div className="text-sm font-semibold" style={{ color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}>{formatCAD(r.amount)}</div>
-                        <div className="text-xs" style={{ color: 'var(--muted-fg)' }}>depuis le {r.from}</div>
-                      </div>
-                      {rates.length > 1 && (
-                        <button onClick={() => removeRate(r.from)} className="text-xs px-2 py-1 rounded-lg" style={{ color: 'var(--danger)', background: 'var(--muted)' }}>×</button>
-                      )}
+                      {formatCAD(currentPrice())}
                     </div>
-                  ))}
-                </div>
-                {showAddRate && (
-                  <div className="rounded-2xl border p-3 flex flex-col gap-2" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input type="date" value={newRateFrom} onChange={e => setNewRateFrom(e.target.value)}
-                        className="rounded-xl px-3 py-2 text-sm outline-none border"
-                        style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }} />
-                      <input inputMode="decimal" value={newRateAmount} onChange={e => setNewRateAmount(e.target.value)}
-                        placeholder="0,00" className="rounded-xl px-3 py-2 text-sm outline-none border text-right"
-                        style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }} />
-                    </div>
-                    <button onClick={addRate} className="w-full py-2 rounded-xl text-sm font-semibold" style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}>
-                      Ajouter
+                  ) : (
+                    <input
+                      inputMode="decimal"
+                      value={continueAmountStr}
+                      onChange={e => setContinueAmountStr(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full rounded-xl px-4 py-3 text-base outline-none border text-right"
+                      style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+                    />
+                  )}
+                </Field>
+              </div>
+
+              {/* Rates history — edit mode only */}
+              {recurring && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>Historique des prix</span>
+                    <button onClick={() => setShowAddRate(v => !v)} className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>
+                      + Ajouter
                     </button>
                   </div>
-                )}
-                <p className="text-xs px-1" style={{ color: 'var(--muted-fg)' }}>
-                  Prix actuel : <span style={{ fontFamily: "'Geist Mono', monospace", fontWeight: 600 }}>{formatCAD(currentPrice())}</span>
-                </p>
-              </div>
+                  <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+                    {[...rates].sort((a, b) => b.from.localeCompare(a.from)).map((r, i, arr) => (
+                      <div key={r.from} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <div className="flex-1">
+                          <div className="text-sm font-semibold" style={{ color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}>{formatCAD(r.amount)}</div>
+                          <div className="text-xs" style={{ color: 'var(--muted-fg)' }}>depuis le {r.from}</div>
+                        </div>
+                        {rates.length > 1 && (
+                          <button onClick={() => removeRate(r.from)} className="text-xs px-2 py-1 rounded-lg" style={{ color: 'var(--danger)', background: 'var(--muted)' }}>×</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {showAddRate && (
+                    <div className="rounded-2xl border p-3 flex flex-col gap-2" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="date" value={newRateFrom} onChange={e => setNewRateFrom(e.target.value)}
+                          className="rounded-xl px-3 py-2 text-sm outline-none border"
+                          style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }} />
+                        <input inputMode="decimal" value={newRateAmount} onChange={e => setNewRateAmount(e.target.value)}
+                          placeholder="0,00" className="rounded-xl px-3 py-2 text-sm outline-none border text-right"
+                          style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }} />
+                      </div>
+                      <button onClick={addRate} className="w-full py-2 rounded-xl text-sm font-semibold" style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}>
+                        Ajouter
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -377,14 +401,43 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
             </>
           )}
 
+          {/* Payé par */}
+          <Field label="Payé par">
+            <Seg
+              options={[
+                { value: 'bea' as Person, label: 'Béa' },
+                { value: 'phil' as Person, label: 'Phil' },
+              ]}
+              value={payer}
+              onChange={setPayer}
+            />
+          </Field>
+
+          {/* Partage */}
+          <Field label="Partage">
+            <Seg
+              options={[
+                { value: 'half' as Split, label: '50/50' },
+                { value: 'phil' as Split, label: '100 % Phil' },
+                { value: 'bea' as Split, label: '100 % Béa' },
+              ]}
+              value={split}
+              onChange={setSplit}
+            />
+          </Field>
+
           {error && <p className="text-sm font-medium" style={{ color: 'var(--danger)' }}>{error}</p>}
 
           {/* Edit actions */}
           {recurring && (
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="flex flex-col gap-2">
               {recurring.type === 'continue' && (
-                <button onClick={handleArchive} disabled={saving} className="py-3 rounded-xl text-sm font-semibold border"
-                  style={{ borderColor: 'var(--border)', color: 'var(--muted-fg)' }}>
+                <button
+                  onClick={handleArchive}
+                  disabled={saving}
+                  className="py-3 rounded-xl text-sm font-semibold border"
+                  style={{ borderColor: 'var(--border)', color: 'var(--muted-fg)' }}
+                >
                   {recurring.archived ? 'Réactiver' : 'Archiver (mettre en pause)'}
                 </button>
               )}
@@ -400,17 +453,69 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
               )}
             </div>
           )}
+
+          {/* Mobile: Enregistrer at bottom of scroll */}
+          <button
+            className="sm:hidden w-full py-4 rounded-2xl text-base font-semibold mt-2"
+            style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? '…' : 'Enregistrer'}
+          </button>
+        </div>
+
+        {/* Desktop: sticky footer */}
+        <div className="hidden sm:block px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <button
+            className="w-full py-4 rounded-2xl text-base font-semibold"
+            style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? '…' : 'Enregistrer'}
+          </button>
         </div>
       </div>
     </div>
   )
 }
 
+// ── Shared helpers ─────────────────────────────────────────────────────────
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>{label}</label>
       {children}
+    </div>
+  )
+}
+
+function Seg<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (v: T) => void
+}) {
+  return (
+    <div className="flex rounded-xl p-1 gap-1" style={{ background: 'var(--muted)' }}>
+      {options.map(opt => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className="flex-1 py-2.5 rounded-lg text-sm transition-all"
+          style={value === opt.value
+            ? { background: 'var(--card)', color: 'var(--fg)', fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
+            : { color: 'var(--muted-fg)' }
+          }
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   )
 }

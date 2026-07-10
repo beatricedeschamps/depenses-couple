@@ -8,9 +8,9 @@ import type { Person, SettlementRow } from '@/lib/database.types'
 interface SettlementSheetProps {
   open: boolean
   onClose: () => void
-  settlement?: SettlementRow      // edit mode
-  defaultAmount?: number          // pre-fill (absolute balance)
-  defaultFrom?: Person            // pre-fill (debtor)
+  settlement?: SettlementRow
+  defaultAmount?: number
+  defaultFrom?: Person
   onSaved?: () => void
 }
 
@@ -84,34 +84,54 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
     onClose()
   }
 
+  const title = settlement ? 'Modifier le remboursement' : 'Enregistrer un remboursement'
+
   if (!open) return null
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose} />
 
       <div
-        className="relative w-full max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
-        style={{ background: 'var(--card)', maxHeight: '80svh' }}
+        className="relative w-full sm:max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
+        style={{ background: 'var(--card)', maxHeight: '92svh' }}
       >
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+        {/* Mobile handle */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
         </div>
 
-        <div className="flex items-center justify-between px-5 pt-2 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
-          <button onClick={onClose} className="text-sm font-medium" style={{ color: 'var(--primary)' }}>Annuler</button>
-          <h2 className="text-base font-semibold" style={{ color: 'var(--fg)' }}>
-            {settlement ? 'Modifier le remboursement' : 'Enregistrer un remboursement'}
-          </h2>
-          <button onClick={handleSave} disabled={saving} className="text-sm font-semibold" style={{ color: saving ? 'var(--muted-fg)' : 'var(--primary)' }}>
-            {saving ? '…' : 'Enregistrer'}
+        {/* Header */}
+        <div
+          className="flex items-center px-5 sm:px-6 pt-2 sm:pt-5 pb-3 sm:pb-4 border-b flex-shrink-0"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <button
+            className="sm:hidden text-sm font-medium"
+            style={{ color: 'var(--primary)', width: 64 }}
+            onClick={onClose}
+          >
+            Annuler
           </button>
+          <h2 className="flex-1 text-center sm:text-left text-base sm:text-xl font-bold" style={{ color: 'var(--fg)' }}>
+            {title}
+          </h2>
+          <button
+            className="hidden sm:flex w-8 h-8 rounded-full items-center justify-center text-base font-medium"
+            style={{ background: 'var(--muted)', color: 'var(--muted-fg)' }}
+            onClick={onClose}
+          >
+            ✕
+          </button>
+          <div className="sm:hidden" style={{ width: 64 }} />
         </div>
 
-        <div className="overflow-y-auto flex flex-col gap-5 p-5 pb-8">
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex flex-col gap-5 p-5 sm:p-6 flex-1">
+
           {/* Amount */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>Montant ($)</label>
@@ -121,10 +141,7 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
               onChange={e => setAmountStr(e.target.value)}
               placeholder="0,00"
               className="w-full rounded-xl px-4 py-4 text-2xl font-bold outline-none border text-center"
-              style={{
-                background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)',
-                fontFamily: "'Geist Mono', monospace",
-              }}
+              style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
               autoFocus
             />
           </div>
@@ -132,23 +149,16 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
           {/* Who pays */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>Qui rembourse</label>
-            <div className="flex gap-2">
-              {(['bea', 'phil'] as Person[]).map(p => (
-                <button
-                  key={p}
-                  onClick={() => setFrom(p)}
-                  className="flex-1 py-3 rounded-xl text-sm font-semibold transition-all"
-                  style={from === p
-                    ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                    : { background: 'var(--muted)', color: 'var(--muted-fg)' }
-                  }
-                >
-                  {p === 'bea' ? 'Béa' : 'Phil'}
-                </button>
-              ))}
-            </div>
+            <Seg
+              options={[
+                { value: 'bea' as Person, label: 'Béa' },
+                { value: 'phil' as Person, label: 'Phil' },
+              ]}
+              value={from}
+              onChange={setFrom}
+            />
             {parseAmount() !== null && (
-              <p className="text-xs mt-1" style={{ color: 'var(--muted-fg)' }}>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--muted-fg)' }}>
                 {from === 'bea' ? 'Béa' : 'Phil'} rembourse {from === 'bea' ? 'Phil' : 'Béa'} de {formatCAD(parseAmount()!)}
               </p>
             )}
@@ -183,8 +193,58 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
               </button>
             )
           )}
+
+          {/* Mobile: Enregistrer at bottom of scroll */}
+          <button
+            className="sm:hidden w-full py-4 rounded-2xl text-base font-semibold mt-2"
+            style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? '…' : 'Enregistrer'}
+          </button>
+        </div>
+
+        {/* Desktop: sticky footer */}
+        <div className="hidden sm:block px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <button
+            className="w-full py-4 rounded-2xl text-base font-semibold"
+            style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? '…' : 'Enregistrer'}
+          </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function Seg<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (v: T) => void
+}) {
+  return (
+    <div className="flex rounded-xl p-1 gap-1" style={{ background: 'var(--muted)' }}>
+      {options.map(opt => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className="flex-1 py-2.5 rounded-lg text-sm transition-all"
+          style={value === opt.value
+            ? { background: 'var(--card)', color: 'var(--fg)', fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
+            : { color: 'var(--muted-fg)' }
+          }
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   )
 }

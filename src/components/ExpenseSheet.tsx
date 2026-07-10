@@ -186,47 +186,46 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
     onClose()
   }
 
-  const payerName = (p: Person) => p === 'bea' ? 'Béa' : 'Phil'
+  const title = expense ? 'Modifier la dépense' : 'Nouvelle dépense'
 
   if (!open) return null
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div
-        className="absolute inset-0"
-        style={{ background: 'rgba(0,0,0,0.45)' }}
-        onClick={onClose}
-      />
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose} />
 
       <div
-        className="relative w-full max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
+        className="relative w-full sm:max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
         style={{ background: 'var(--card)', maxHeight: '92svh' }}
       >
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+        {/* Mobile handle */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
         </div>
 
-        <div className="flex items-center justify-between px-5 pt-2 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
-          <button onClick={onClose} className="text-sm font-medium" style={{ color: 'var(--primary)' }}>
+        {/* Header */}
+        <div className="flex items-center px-5 sm:px-6 pt-2 sm:pt-5 pb-3 sm:pb-4 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <button className="sm:hidden text-sm font-medium" style={{ color: 'var(--primary)', width: 64 }} onClick={onClose}>
             Annuler
           </button>
-          <h2 className="text-base font-semibold" style={{ color: 'var(--fg)' }}>
-            {expense ? 'Modifier la dépense' : 'Nouvelle dépense'}
+          <h2 className="flex-1 text-center sm:text-left text-base sm:text-xl font-bold" style={{ color: 'var(--fg)' }}>
+            {title}
           </h2>
           <button
-            onClick={handleSave}
-            disabled={saving}
-            className="text-sm font-semibold"
-            style={{ color: saving ? 'var(--muted-fg)' : 'var(--primary)' }}
+            className="hidden sm:flex w-8 h-8 rounded-full items-center justify-center text-base font-medium"
+            style={{ background: 'var(--muted)', color: 'var(--muted-fg)' }}
+            onClick={onClose}
           >
-            {saving ? '…' : 'Enregistrer'}
+            ✕
           </button>
+          <div className="sm:hidden" style={{ width: 64 }} />
         </div>
 
-        <div className="overflow-y-auto flex flex-col gap-5 p-5 pb-8">
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex flex-col gap-5 p-5 sm:p-6 flex-1">
 
           {/* Description */}
           <div className="flex flex-col gap-1.5">
@@ -243,7 +242,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
             />
           </div>
 
-          {/* Category */}
+          {/* Category — icon only */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
               Catégorie
@@ -253,16 +252,14 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                 <button
                   key={cat.id}
                   onClick={() => setCategoryId(cat.id === categoryId ? null : cat.id)}
-                  className="flex flex-col items-center gap-1 flex-shrink-0 rounded-xl p-2.5 transition-all"
+                  className="flex-shrink-0 rounded-xl p-3 transition-all"
                   style={cat.id === categoryId
-                    ? { background: 'var(--primary-soft)', color: 'var(--primary)', minWidth: 60 }
-                    : { background: 'var(--muted)', color: 'var(--muted-fg)', minWidth: 60 }
+                    ? { background: 'var(--primary-soft)', color: 'var(--primary)' }
+                    : { background: 'var(--muted)', color: 'var(--muted-fg)' }
                   }
+                  title={cat.name}
                 >
                   <Icon id={cat.icon} size={22} filled={cat.id === categoryId} />
-                  <span className="text-[10px] font-medium text-center leading-tight" style={{ maxWidth: 56 }}>
-                    {cat.name}
-                  </span>
                 </button>
               ))}
             </div>
@@ -462,21 +459,14 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
             <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
               Payé par
             </label>
-            <div className="flex gap-2">
-              {(['bea', 'phil'] as Person[]).map(p => (
-                <button
-                  key={p}
-                  onClick={() => setPayer(p)}
-                  className="flex-1 py-3 rounded-xl text-sm font-semibold transition-all"
-                  style={payer === p
-                    ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                    : { background: 'var(--muted)', color: 'var(--muted-fg)' }
-                  }
-                >
-                  {payerName(p)}
-                </button>
-              ))}
-            </div>
+            <Seg
+              options={[
+                { value: 'bea' as Person, label: 'Béa' },
+                { value: 'phil' as Person, label: 'Phil' },
+              ]}
+              value={payer}
+              onChange={setPayer}
+            />
           </div>
 
           {/* Split */}
@@ -484,21 +474,15 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
             <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
               Partage
             </label>
-            <div className="flex gap-2">
-              {([['half', '50 / 50'], ['phil', 'Phil seul'], ['bea', 'Béa seule']] as [Split, string][]).map(([s, label]) => (
-                <button
-                  key={s}
-                  onClick={() => setSplit(s)}
-                  className="flex-1 py-3 rounded-xl text-sm font-semibold transition-all"
-                  style={split === s
-                    ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                    : { background: 'var(--muted)', color: 'var(--muted-fg)' }
-                  }
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <Seg
+              options={[
+                { value: 'half' as Split, label: '50/50' },
+                { value: 'phil' as Split, label: '100 % Phil' },
+                { value: 'bea' as Split, label: '100 % Béa' },
+              ]}
+              value={split}
+              onChange={setSplit}
+            />
           </div>
 
           {/* Preview */}
@@ -525,35 +509,72 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                   Supprimer cette dépense ?
                 </p>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setConfirmDelete(false)}
-                    className="flex-1 py-3 rounded-xl text-sm font-semibold"
-                    style={{ background: 'var(--muted)', color: 'var(--fg)' }}
-                  >
+                  <button onClick={() => setConfirmDelete(false)} className="flex-1 py-3 rounded-xl text-sm font-semibold" style={{ background: 'var(--muted)', color: 'var(--fg)' }}>
                     Annuler
                   </button>
-                  <button
-                    onClick={handleDelete}
-                    disabled={saving}
-                    className="flex-1 py-3 rounded-xl text-sm font-semibold"
-                    style={{ background: 'var(--danger)', color: '#fff' }}
-                  >
+                  <button onClick={handleDelete} disabled={saving} className="flex-1 py-3 rounded-xl text-sm font-semibold" style={{ background: 'var(--danger)', color: '#fff' }}>
                     Supprimer
                   </button>
                 </div>
               </div>
             ) : (
-              <button
-                onClick={() => setConfirmDelete(true)}
-                className="py-3 rounded-xl text-sm font-semibold border"
-                style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
-              >
+              <button onClick={() => setConfirmDelete(true)} className="py-3 rounded-xl text-sm font-semibold border" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}>
                 Supprimer la dépense
               </button>
             )
           )}
+
+          {/* Mobile: Enregistrer at bottom of scroll */}
+          <button
+            className="sm:hidden w-full py-4 rounded-2xl text-base font-semibold mt-2"
+            style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? '…' : 'Enregistrer'}
+          </button>
+        </div>
+
+        {/* Desktop: sticky footer */}
+        <div className="hidden sm:block px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <button
+            className="w-full py-4 rounded-2xl text-base font-semibold"
+            style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? '…' : 'Enregistrer'}
+          </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function Seg<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (v: T) => void
+}) {
+  return (
+    <div className="flex rounded-xl p-1 gap-1" style={{ background: 'var(--muted)' }}>
+      {options.map(opt => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className="flex-1 py-2.5 rounded-lg text-sm transition-all"
+          style={value === opt.value
+            ? { background: 'var(--card)', color: 'var(--fg)', fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
+            : { color: 'var(--muted-fg)' }
+          }
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   )
 }

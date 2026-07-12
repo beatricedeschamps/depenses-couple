@@ -7,6 +7,7 @@ import { useSettings } from '@/hooks/useSettings'
 import { Icon } from '@/lib/icons'
 import { formatCAD } from '@/lib/utils'
 import { PinPad } from '@/components/PinPad'
+import { GasModule, computeGasAmount } from '@/components/GasModule'
 import type { ExpenseRow, GasDetails, Person, Split } from '@/lib/database.types'
 
 interface ExpenseSheetProps {
@@ -34,8 +35,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  // Gas calculator state
-  const [useGas, setUseGas] = useState(false)
+  // Gas state
   const [gasVehicleId, setGasVehicleId] = useState('')
   const [gasTripId, setGasTripId] = useState<string | null>(null)
   const [gasKm, setGasKm] = useState('')
@@ -46,13 +46,28 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 
   const selectedCat = categories.find(c => c.id === categoryId)
   const isCar = selectedCat?.icon === 'car'
+  const gasVehicle = settings.vehicles.find(v => v.id === gasVehicleId)
+  const gasAmount = computeGasAmount(gasVehicle, gasKm, gasToll, gasPrice)
 
-  // Reset gas when category leaves 'car'
+  // Auto-init / reset gas when car category toggled
   useEffect(() => {
-    if (!isCar) setUseGas(false)
+    if (isCar) {
+      if (!gasVehicleId && settings.vehicles.length > 0) {
+        setGasVehicleId(settings.vehicles[0].id)
+      }
+      if (!gasPrice) {
+        setGasPrice(settings.default_gas_price.toFixed(3).replace('.', ','))
+      }
+    } else {
+      setGasVehicleId('')
+      setGasTripId(null)
+      setGasKm('')
+      setGasToll('0')
+      setGasPrice('')
+    }
   }, [isCar])
 
-  // Populate when editing
+  // Populate when opening
   useEffect(() => {
     if (open && expense) {
       setDescription(expense.description)
@@ -63,14 +78,12 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
       setSplit(expense.split)
       setConfirmDelete(false)
       if (expense.gas) {
-        setUseGas(true)
         setGasVehicleId(expense.gas.vehicleId)
         setGasTripId(null)
         setGasKm(String(expense.gas.distanceKm))
         setGasToll(expense.gas.tollAmount.toFixed(2).replace('.', ','))
         setGasPrice(expense.gas.gasPricePerL.toFixed(3).replace('.', ','))
       } else {
-        setUseGas(false)
         setGasVehicleId('')
         setGasTripId(null)
         setGasKm('')
@@ -85,7 +98,6 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
       setPayer(profile?.person ?? 'bea')
       setSplit('half')
       setConfirmDelete(false)
-      setUseGas(false)
       setGasVehicleId('')
       setGasTripId(null)
       setGasKm('')
@@ -105,42 +117,18 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
     return isNaN(n) || n <= 0 ? null : Math.round(n * 100) / 100
   }
 
-  const gasVehicle = settings.vehicles.find(v => v.id === gasVehicleId)
-  const gasAmount = (() => {
-    if (!useGas || !gasVehicle) return null
-    const km = parseFloat(gasKm.replace(',', '.'))
-    const toll = parseFloat(gasToll.replace(',', '.')) || 0
-    const price = parseFloat(gasPrice.replace(',', '.'))
-    if (isNaN(km) || km <= 0 || isNaN(price) || price <= 0) return null
-    return Math.round(((km / 100) * gasVehicle.l100 * price + toll) * 100) / 100
-  })()
-
   function finalAmount(): number | null {
-    return useGas ? gasAmount : parseAmount()
-  }
-
-  function enableGas() {
-    setUseGas(true)
-    if (!gasPrice) setGasPrice(settings.default_gas_price.toFixed(3).replace('.', ','))
-    if (!gasVehicleId && settings.vehicles.length > 0) setGasVehicleId(settings.vehicles[0].id)
-  }
-
-  function selectTrip(tripId: string) {
-    const trip = settings.trips.find(t => t.id === tripId)
-    if (!trip) return
-    setGasTripId(tripId)
-    setGasKm(String(trip.km))
-    setGasToll(trip.toll.toFixed(2).replace('.', ','))
+    return isCar ? gasAmount : parseAmount()
   }
 
   async function handleSave() {
     const amount = finalAmount()
     if (!description.trim()) { setError('La description est requise.'); return }
-    if (!amount) { setError(useGas ? 'Complétez les champs gaz pour calculer le montant.' : 'Le montant doit être un nombre positif.'); return }
+    if (!amount) { setError(isCar ? 'Entrez la distance pour calculer le montant.' : 'Le montant doit être un nombre positif.'); return }
     if (!household || !profile) return
     setError(null); setSaving(true)
 
-    const gasDetails: GasDetails | null = (useGas && gasAmount !== null && gasVehicleId) ? {
+    const gasDetails: GasDetails | null = (isCar && gasAmount !== null && gasVehicleId) ? {
       distanceKm: parseFloat(gasKm.replace(',', '.')),
       tollAmount: parseFloat(gasToll.replace(',', '.')) || 0,
       gasPricePerL: parseFloat(gasPrice.replace(',', '.')),
@@ -149,27 +137,14 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 
     if (expense) {
       const { error: err } = await supabase.from('expenses').update({
-        description: description.trim(),
-        category_id: categoryId,
-        date,
-        amount,
-        payer,
-        split,
-        gas: gasDetails,
+        description: description.trim(), category_id: categoryId, date, amount, payer, split, gas: gasDetails,
       } as never).eq('id', expense.id)
       setSaving(false)
       if (err) { setError(err.message); return }
     } else {
       const { error: err } = await supabase.from('expenses').insert({
-        household_id: household.id,
-        description: description.trim(),
-        category_id: categoryId,
-        date,
-        amount,
-        payer,
-        split,
-        gas: gasDetails,
-        created_by: profile.id,
+        household_id: household.id, description: description.trim(), category_id: categoryId,
+        date, amount, payer, split, gas: gasDetails, created_by: profile.id,
       } as never)
       setSaving(false)
       if (err) { setError(err.message); return }
@@ -230,9 +205,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 
           {/* Description */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
-              Description
-            </label>
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Description</label>
             <input
               ref={descRef}
               value={description}
@@ -245,9 +218,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 
           {/* Category — icon only */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
-              Catégorie
-            </label>
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Catégorie</label>
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               {categories.map(cat => (
                 <button
@@ -266,213 +237,56 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
             </div>
           </div>
 
-          {/* Gas calculator — only when Déplacement category selected */}
-          {isCar && (
-            <div className="flex flex-col gap-4">
-              <button
-                onClick={() => useGas ? setUseGas(false) : enableGas()}
-                className="flex items-center gap-2 self-start rounded-xl px-4 py-2.5 text-sm font-semibold transition-all"
-                style={useGas
-                  ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                  : { background: 'var(--muted)', color: 'var(--muted-fg)', border: '1px solid var(--border)' }
-                }
-              >
-                <Icon id="car" size={16} filled={useGas} />
-                {useGas ? 'Calculateur gaz actif' : 'Calculer le gaz'}
-              </button>
-
-              {useGas && (
-                <div className="flex flex-col gap-4 rounded-2xl p-4 border" style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}>
-
-                  {/* Vehicle selector */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
-                      Véhicule
-                    </label>
-                    {settings.vehicles.length === 0 ? (
-                      <p className="text-sm" style={{ color: 'var(--muted-fg)' }}>
-                        Aucun véhicule — ajoutez-en dans Paramètres.
-                      </p>
-                    ) : (
-                      <div className="flex gap-2 flex-wrap">
-                        {settings.vehicles.map(v => (
-                          <button
-                            key={v.id}
-                            onClick={() => setGasVehicleId(v.id)}
-                            className="rounded-xl px-3 py-2 text-sm font-medium transition-all"
-                            style={gasVehicleId === v.id
-                              ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                              : { background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border)' }
-                            }
-                          >
-                            {v.name}
-                            <span className="ml-1 text-xs opacity-70">{v.l100} L/100</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Trip preset selector */}
-                  {settings.trips.length > 0 && (
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
-                        Trajet préenregistré
-                      </label>
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => setGasTripId(null)}
-                          className="rounded-xl px-3 py-2 text-sm font-medium transition-all"
-                          style={gasTripId === null
-                            ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                            : { background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border)' }
-                          }
-                        >
-                          Manuel
-                        </button>
-                        {settings.trips.map(t => (
-                          <button
-                            key={t.id}
-                            onClick={() => selectTrip(t.id)}
-                            className="rounded-xl px-3 py-2 text-sm font-medium transition-all"
-                            style={gasTripId === t.id
-                              ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                              : { background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border)' }
-                            }
-                          >
-                            {t.name}
-                            <span className="ml-1 text-xs opacity-70">{t.km} km</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Distance + Toll */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
-                        Distance (km)
-                      </label>
-                      <input
-                        inputMode="decimal"
-                        value={gasKm}
-                        onChange={e => { setGasKm(e.target.value); setGasTripId(null) }}
-                        placeholder="0"
-                        className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
-                        style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
-                        Péage ($)
-                      </label>
-                      <input
-                        inputMode="decimal"
-                        value={gasToll}
-                        onChange={e => { setGasToll(e.target.value); setGasTripId(null) }}
-                        placeholder="0,00"
-                        className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
-                        style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Gas price */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
-                      Prix essence ($/L)
-                    </label>
-                    <input
-                      inputMode="decimal"
-                      value={gasPrice}
-                      onChange={e => setGasPrice(e.target.value)}
-                      placeholder="1,520"
-                      className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
-                      style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
-                    />
-                  </div>
-
-                  {/* Computed result */}
-                  {gasAmount !== null && gasVehicle && (
-                    <div className="rounded-xl p-3" style={{ background: 'var(--primary-soft)', color: 'var(--primary-soft-fg)' }}>
-                      <p className="text-sm font-semibold mb-1">
-                        Montant calculé : {formatCAD(gasAmount)}
-                      </p>
-                      <p className="text-xs opacity-80">
-                        {gasKm} km × {gasVehicle.l100} L/100 × {parseFloat(gasPrice.replace(',', '.')).toFixed(3)} $/L
-                        {parseFloat(gasToll.replace(',', '.')) > 0 ? ` + ${formatCAD(parseFloat(gasToll.replace(',', '.')))} péage` : ''}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Mobile: Date standalone + PIN pad for amount (hidden when gas active) */}
-          <div className="sm:hidden flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Date</label>
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                className="w-full rounded-xl px-4 py-3 text-base outline-none border"
-                style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
-              />
-            </div>
-            {!useGas && (
-              <PinPad value={amountStr} onChange={setAmountStr} label="Montant ($)" />
-            )}
+          {/* Date — always visible, full width */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border"
+              style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+            />
           </div>
 
-          {/* Desktop: Date + Amount grid */}
-          <div className="hidden sm:grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Date</label>
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                className="w-full rounded-xl px-4 py-3 sm:text-sm outline-none border"
-                style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Montant ($)</label>
-              {useGas ? (
-                <div
-                  className="w-full rounded-xl px-4 py-3 sm:text-sm text-right border"
-                  style={{
-                    background: 'var(--input-bg)', borderColor: 'var(--border)',
-                    color: gasAmount !== null ? 'var(--fg)' : 'var(--muted-fg)',
-                    fontFamily: "'Geist Mono', monospace",
-                  }}
-                >
-                  {gasAmount !== null ? gasAmount.toFixed(2).replace('.', ',') : '—'}
-                </div>
-              ) : (
+          {/* Amount area — gas module when car, otherwise PIN pad (mobile) / text input (desktop) */}
+          {isCar ? (
+            <GasModule
+              vehicles={settings.vehicles}
+              trips={settings.trips}
+              vehicleId={gasVehicleId}
+              tripId={gasTripId}
+              km={gasKm}
+              toll={gasToll}
+              gasPrice={gasPrice}
+              onVehicleChange={setGasVehicleId}
+              onTripChange={(id, km, toll) => { setGasTripId(id); setGasKm(km); setGasToll(toll) }}
+              onGasPriceChange={setGasPrice}
+            />
+          ) : (
+            <>
+              {/* Mobile: PIN pad */}
+              <div className="sm:hidden">
+                <PinPad value={amountStr} onChange={setAmountStr} label="Montant ($)" />
+              </div>
+              {/* Desktop: text input */}
+              <div className="hidden sm:flex flex-col gap-1.5">
+                <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Montant ($)</label>
                 <input
                   inputMode="decimal"
                   value={amountStr}
                   onChange={e => setAmountStr(e.target.value)}
                   placeholder="0,00"
                   className="w-full rounded-xl px-4 py-3 sm:text-sm outline-none border text-right"
-                  style={{
-                    background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)',
-                    fontFamily: "'Geist Mono', monospace",
-                  }}
+                  style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                 />
-              )}
-            </div>
-          </div>
+              </div>
+            </>
+          )}
 
           {/* Payer */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
-              Payé par
-            </label>
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Payé par</label>
             <Seg
               options={[
                 { value: 'bea' as Person, label: 'Béa' },
@@ -485,9 +299,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 
           {/* Split */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
-              Partage
-            </label>
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Partage</label>
             <Seg
               options={[
                 { value: 'half' as Split, label: '50/50' },
@@ -508,16 +320,10 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
           {expense && (
             confirmDelete ? (
               <div className="flex flex-col gap-2">
-                <p className="text-sm text-center" style={{ color: 'var(--muted-fg)' }}>
-                  Supprimer cette dépense ?
-                </p>
+                <p className="text-sm text-center" style={{ color: 'var(--muted-fg)' }}>Supprimer cette dépense ?</p>
                 <div className="flex gap-2">
-                  <button onClick={() => setConfirmDelete(false)} className="flex-1 py-3 rounded-xl text-sm font-semibold" style={{ background: 'var(--muted)', color: 'var(--fg)' }}>
-                    Annuler
-                  </button>
-                  <button onClick={handleDelete} disabled={saving} className="flex-1 py-3 rounded-xl text-sm font-semibold" style={{ background: 'var(--danger)', color: '#fff' }}>
-                    Supprimer
-                  </button>
+                  <button onClick={() => setConfirmDelete(false)} className="flex-1 py-3 rounded-xl text-sm font-semibold" style={{ background: 'var(--muted)', color: 'var(--fg)' }}>Annuler</button>
+                  <button onClick={handleDelete} disabled={saving} className="flex-1 py-3 rounded-xl text-sm font-semibold" style={{ background: 'var(--danger)', color: '#fff' }}>Supprimer</button>
                 </div>
               </div>
             ) : (
@@ -555,9 +361,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 }
 
 function Seg<T extends string>({
-  options,
-  value,
-  onChange,
+  options, value, onChange,
 }: {
   options: { value: T; label: string }[]
   value: T
@@ -581,4 +385,3 @@ function Seg<T extends string>({
     </div>
   )
 }
-

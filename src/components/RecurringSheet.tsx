@@ -3,9 +3,11 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { useCategories } from '@/hooks/useCategories'
+import { useSettings } from '@/hooks/useSettings'
 import { Icon } from '@/lib/icons'
 import { formatCAD } from '@/lib/utils'
 import { PinPad } from '@/components/PinPad'
+import { GasModule, computeGasAmount } from '@/components/GasModule'
 import type { RecurringRow, RecurringType, Frequency, Person, Split, PriceRate } from '@/lib/database.types'
 
 interface RecurringSheetProps {
@@ -29,6 +31,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
   const { profile } = useAuth()
   const { household } = useHousehold()
   const { categories } = useCategories()
+  const { settings } = useSettings()
 
   const [type, setType] = useState<RecurringType>('continue')
   const [description, setDescription] = useState('')
@@ -47,10 +50,33 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
   const [occurrences, setOccurrences] = useState(1)
   const [year, setYear] = useState(CURRENT_YEAR)
   const [seriePrice, setSeriePrice] = useState('')
-  // State
+  // Gas state (for car category, add mode only)
+  const [gasVehicleId, setGasVehicleId] = useState('')
+  const [gasTripId, setGasTripId] = useState<string | null>(null)
+  const [gasKm, setGasKm] = useState('')
+  const [gasToll, setGasToll] = useState('0')
+  const [gasPrice, setGasPrice] = useState('')
+  // UI state
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const selectedCat = categories.find(c => c.id === categoryId)
+  const isCar = selectedCat?.icon === 'car'
+  const gasVehicle = settings.vehicles.find(v => v.id === gasVehicleId)
+  const gasAmount = computeGasAmount(gasVehicle, gasKm, gasToll, gasPrice)
+
+  // Auto-init / reset gas when car category toggled (add mode only)
+  useEffect(() => {
+    if (!recurring) {
+      if (isCar) {
+        if (!gasVehicleId && settings.vehicles.length > 0) setGasVehicleId(settings.vehicles[0].id)
+        if (!gasPrice) setGasPrice(settings.default_gas_price.toFixed(3).replace('.', ','))
+      } else {
+        setGasVehicleId(''); setGasTripId(null); setGasKm(''); setGasToll('0'); setGasPrice('')
+      }
+    }
+  }, [isCar])
 
   useEffect(() => {
     if (!open) return
@@ -84,6 +110,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
       setOccurrences(1)
       setYear(CURRENT_YEAR)
       setSeriePrice('')
+      setGasVehicleId(''); setGasTripId(null); setGasKm(''); setGasToll('0'); setGasPrice('')
     }
     setShowAddRate(false)
     setNewRateFrom(TODAY)
@@ -95,12 +122,24 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
 
   function currentRates(): PriceRate[] {
     if (type === 'serie') {
-      const amt = parseFloat(seriePrice.replace(',', '.'))
-      return [{ from: `${year}-01-01`, amount: isNaN(amt) ? 0 : Math.round(amt * 100) / 100 }]
+      let amt: number
+      if (isCar && !recurring) {
+        amt = gasAmount ?? 0
+      } else {
+        const p = parseFloat(seriePrice.replace(',', '.'))
+        amt = isNaN(p) ? 0 : p
+      }
+      return [{ from: `${year}-01-01`, amount: Math.round(amt * 100) / 100 }]
     }
     if (!recurring) {
-      const amt = parseFloat(continueAmountStr.replace(',', '.'))
-      return [{ from: startDate, amount: isNaN(amt) ? 0 : Math.round(amt * 100) / 100 }]
+      let amt: number
+      if (isCar) {
+        amt = gasAmount ?? 0
+      } else {
+        const a = parseFloat(continueAmountStr.replace(',', '.'))
+        amt = isNaN(a) ? 0 : a
+      }
+      return [{ from: startDate, amount: Math.round(amt * 100) / 100 }]
     }
     return rates
   }
@@ -114,15 +153,25 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
     if (!description.trim()) { setError('La description est requise.'); return }
     if (!household || !profile) return
     const finalRates = currentRates()
+
     if (type === 'serie') {
-      const p = parseFloat(seriePrice.replace(',', '.'))
-      if (isNaN(p) || p < 0) { setError('Le prix est invalide.'); return }
+      if (isCar && !recurring) {
+        if (!gasAmount) { setError('Entrez la distance pour calculer le montant.'); return }
+      } else {
+        const p = parseFloat(seriePrice.replace(',', '.'))
+        if (isNaN(p) || p < 0) { setError('Le prix est invalide.'); return }
+      }
     } else if (!recurring) {
-      const amt = parseFloat(continueAmountStr.replace(',', '.'))
-      if (isNaN(amt) || amt < 0) { setError('Le montant est invalide.'); return }
+      if (isCar) {
+        if (!gasAmount) { setError('Entrez la distance pour calculer le montant.'); return }
+      } else {
+        const amt = parseFloat(continueAmountStr.replace(',', '.'))
+        if (isNaN(amt) || amt < 0) { setError('Le montant est invalide.'); return }
+      }
     } else {
       if (finalRates.some(r => r.amount < 0)) { setError('Un montant est invalide.'); return }
     }
+
     setError(null); setSaving(true)
 
     const payload = {
@@ -142,10 +191,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
       if (err) { setError(err.message); return }
     } else {
       const { error: err } = await supabase.from('recurrings').insert({
-        household_id: household.id,
-        archived: false,
-        created_by: profile.id,
-        ...payload,
+        household_id: household.id, archived: false, created_by: profile.id, ...payload,
       } as never)
       setSaving(false)
       if (err) { setError(err.message); return }
@@ -208,21 +254,11 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
         </div>
 
         {/* Header */}
-        <div
-          className="flex items-center px-5 sm:px-6 pt-2 sm:pt-5 pb-3 sm:pb-4 border-b flex-shrink-0"
-          style={{ borderColor: 'var(--border)' }}
-        >
-          <button
-            className="sm:hidden text-sm font-medium"
-            style={{ color: 'var(--primary)', width: 64 }}
-            onClick={onClose}
-          >
+        <div className="flex items-center px-5 sm:px-6 pt-2 sm:pt-5 pb-3 sm:pb-4 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <button className="sm:hidden text-sm font-medium" style={{ color: 'var(--primary)', width: 64 }} onClick={onClose}>
             Annuler
           </button>
-          <h2
-            className="flex-1 text-center sm:text-left text-base font-semibold"
-            style={{ color: 'var(--fg)' }}
-          >
+          <h2 className="flex-1 text-center sm:text-left text-base font-semibold" style={{ color: 'var(--fg)' }}>
             {title}
           </h2>
           <button
@@ -289,7 +325,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                 <Seg options={FREQ_OPTIONS} value={frequency} onChange={setFrequency} />
               </Field>
 
-              {/* Mobile: date standalone + PIN pad (add) or readonly (edit) */}
+              {/* Mobile: date standalone + amount/gas */}
               <div className="sm:hidden flex flex-col gap-4">
                 <Field label="Facturé à partir de">
                   <input
@@ -300,50 +336,68 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                     style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
                   />
                 </Field>
-                {!recurring ? (
-                  <PinPad value={continueAmountStr} onChange={setContinueAmountStr} label="Montant / période ($)" />
-                ) : (
+                {!recurring && (
+                  isCar ? (
+                    <GasModule
+                      vehicles={settings.vehicles} trips={settings.trips}
+                      vehicleId={gasVehicleId} tripId={gasTripId} km={gasKm} toll={gasToll} gasPrice={gasPrice}
+                      onVehicleChange={setGasVehicleId}
+                      onTripChange={(id, km, toll) => { setGasTripId(id); setGasKm(km); setGasToll(toll) }}
+                      onGasPriceChange={setGasPrice}
+                    />
+                  ) : (
+                    <PinPad value={continueAmountStr} onChange={setContinueAmountStr} label="Montant / période ($)" />
+                  )
+                )}
+                {recurring && (
                   <Field label="Montant actuel">
-                    <div
-                      className="w-full rounded-xl px-4 py-3 text-base border"
-                      style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
-                    >
+                    <div className="w-full rounded-xl px-4 py-3 text-base border"
+                      style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}>
                       {formatCAD(currentPrice())}
                     </div>
                   </Field>
                 )}
               </div>
 
-              {/* Desktop: date + amount grid */}
-              <div className="hidden sm:grid grid-cols-2 gap-3">
-                <Field label="Facturé à partir de">
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={e => setStartDate(e.target.value)}
-                    className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border"
-                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
-                  />
-                </Field>
-                <Field label="Montant / période ($)">
-                  {recurring ? (
-                    <div
-                      className="w-full rounded-xl px-4 py-3 text-base sm:text-sm border"
-                      style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
-                    >
-                      {formatCAD(currentPrice())}
-                    </div>
-                  ) : (
-                    <input
-                      inputMode="decimal"
-                      value={continueAmountStr}
-                      onChange={e => setContinueAmountStr(e.target.value)}
-                      placeholder="0,00"
-                      className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
-                      style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+              {/* Desktop: date + amount/gas */}
+              <div className="hidden sm:flex flex-col gap-4">
+                {!recurring && isCar ? (
+                  <>
+                    <Field label="Facturé à partir de">
+                      <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                        className="w-full rounded-xl px-4 py-3 sm:text-sm outline-none border"
+                        style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }} />
+                    </Field>
+                    <GasModule
+                      vehicles={settings.vehicles} trips={settings.trips}
+                      vehicleId={gasVehicleId} tripId={gasTripId} km={gasKm} toll={gasToll} gasPrice={gasPrice}
+                      onVehicleChange={setGasVehicleId}
+                      onTripChange={(id, km, toll) => { setGasTripId(id); setGasKm(km); setGasToll(toll) }}
+                      onGasPriceChange={setGasPrice}
                     />
-                  )}
-                </Field>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Facturé à partir de">
+                      <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                        className="w-full rounded-xl px-4 py-3 sm:text-sm outline-none border"
+                        style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }} />
+                    </Field>
+                    <Field label="Montant / période ($)">
+                      {recurring ? (
+                        <div className="w-full rounded-xl px-4 py-3 sm:text-sm border"
+                          style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}>
+                          {formatCAD(currentPrice())}
+                        </div>
+                      ) : (
+                        <input inputMode="decimal" value={continueAmountStr} onChange={e => setContinueAmountStr(e.target.value)}
+                          placeholder="0,00"
+                          className="w-full rounded-xl px-4 py-3 sm:text-sm outline-none border text-right"
+                          style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }} />
+                      )}
+                    </Field>
+                  </div>
+                )}
               </div>
 
               {/* Rates history — edit mode only */}
@@ -357,7 +411,8 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                   </div>
                   <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
                     {[...rates].sort((a, b) => b.from.localeCompare(a.from)).map((r, i, arr) => (
-                      <div key={r.from} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', background: 'var(--input-bg)' }}>
+                      <div key={r.from} className="flex items-center gap-3 px-4 py-3"
+                        style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', background: 'var(--input-bg)' }}>
                         <div className="flex-1">
                           <div className="text-sm font-semibold" style={{ color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}>{formatCAD(r.amount)}</div>
                           <div className="text-xs" style={{ color: 'var(--muted-fg)' }}>depuis le {r.from}</div>
@@ -393,42 +448,43 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
             <>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Occurrences / an">
-                  <input
-                    inputMode="numeric"
-                    value={String(occurrences)}
+                  <input inputMode="numeric" value={String(occurrences)}
                     onChange={e => setOccurrences(Math.max(1, parseInt(e.target.value) || 1))}
                     className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-center"
-                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
-                  />
+                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }} />
                 </Field>
                 <Field label="Année">
-                  <input
-                    inputMode="numeric"
-                    value={String(year)}
+                  <input inputMode="numeric" value={String(year)}
                     onChange={e => setYear(parseInt(e.target.value) || CURRENT_YEAR)}
                     className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-center"
-                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
-                  />
+                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }} />
                 </Field>
               </div>
 
-              {/* Mobile: PIN pad */}
-              <div className="sm:hidden">
-                <PinPad value={seriePrice} onChange={setSeriePrice} label="Prix par occurrence ($)" />
-              </div>
-              {/* Desktop: text input */}
-              <div className="hidden sm:block">
-                <Field label="Prix par occurrence ($)">
-                  <input
-                    inputMode="decimal"
-                    value={seriePrice}
-                    onChange={e => setSeriePrice(e.target.value)}
-                    placeholder="0,00"
-                    className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
-                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
-                  />
-                </Field>
-              </div>
+              {/* Price — gas module when car (add mode), otherwise PIN pad / text input */}
+              {isCar && !recurring ? (
+                <GasModule
+                  vehicles={settings.vehicles} trips={settings.trips}
+                  vehicleId={gasVehicleId} tripId={gasTripId} km={gasKm} toll={gasToll} gasPrice={gasPrice}
+                  onVehicleChange={setGasVehicleId}
+                  onTripChange={(id, km, toll) => { setGasTripId(id); setGasKm(km); setGasToll(toll) }}
+                  onGasPriceChange={setGasPrice}
+                />
+              ) : (
+                <>
+                  <div className="sm:hidden">
+                    <PinPad value={seriePrice} onChange={setSeriePrice} label="Prix par occurrence ($)" />
+                  </div>
+                  <div className="hidden sm:block">
+                    <Field label="Prix par occurrence ($)">
+                      <input inputMode="decimal" value={seriePrice} onChange={e => setSeriePrice(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full rounded-xl px-4 py-3 sm:text-sm outline-none border text-right"
+                        style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }} />
+                    </Field>
+                  </div>
+                </>
+              )}
             </>
           )}
 
@@ -463,12 +519,9 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
           {recurring && (
             <div className="flex flex-col gap-2">
               {recurring.type === 'continue' && (
-                <button
-                  onClick={handleArchive}
-                  disabled={saving}
+                <button onClick={handleArchive} disabled={saving}
                   className="py-3 rounded-xl text-sm font-semibold border"
-                  style={{ borderColor: 'var(--border)', color: 'var(--muted-fg)' }}
-                >
+                  style={{ borderColor: 'var(--border)', color: 'var(--muted-fg)' }}>
                   {recurring.archived ? 'Réactiver' : 'Archiver (mettre en pause)'}
                 </button>
               )}
@@ -524,9 +577,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function Seg<T extends string>({
-  options,
-  value,
-  onChange,
+  options, value, onChange,
 }: {
   options: { value: T; label: string }[]
   value: T

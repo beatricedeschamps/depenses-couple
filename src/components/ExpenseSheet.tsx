@@ -6,6 +6,7 @@ import { useCategories } from '@/hooks/useCategories'
 import { useSettings } from '@/hooks/useSettings'
 import { Icon } from '@/lib/icons'
 import { formatCAD } from '@/lib/utils'
+import { PinPad } from '@/components/PinPad'
 import type { ExpenseRow, GasDetails, Person, Split } from '@/lib/database.types'
 
 interface ExpenseSheetProps {
@@ -199,7 +200,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 
       <div
         className="relative w-full sm:max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
-        style={{ background: 'var(--card)', maxHeight: '92svh' }}
+        style={{ background: 'var(--appbg)', maxHeight: '92svh' }}
       >
         {/* Mobile handle */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
@@ -215,7 +216,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
             {title}
           </h2>
           <button
-            className="hidden sm:flex w-8 h-8 sm:w-[30px] sm:h-[30px] rounded-full items-center justify-center text-base font-medium"
+            className="hidden sm:flex w-8 h-8 sm:w-[30px] sm:h-[30px] rounded-xl items-center justify-center text-base font-medium"
             style={{ background: 'var(--muted)', color: 'var(--muted-fg)' }}
             onClick={onClose}
           >
@@ -229,7 +230,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 
           {/* Description */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
               Description
             </label>
             <input
@@ -238,13 +239,13 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
               onChange={e => setDescription(e.target.value)}
               placeholder="Ex. Épicerie Metro"
               className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border"
-              style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+              style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
             />
           </div>
 
           {/* Category — icon only */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
               Catégorie
             </label>
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
@@ -252,10 +253,10 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                 <button
                   key={cat.id}
                   onClick={() => setCategoryId(cat.id === categoryId ? null : cat.id)}
-                  className="flex-shrink-0 rounded-xl p-3 transition-all"
+                  className="flex-shrink-0 rounded-xl p-3 transition-all border"
                   style={cat.id === categoryId
-                    ? { background: 'var(--primary-soft)', color: 'var(--primary)' }
-                    : { background: 'var(--muted)', color: 'var(--muted-fg)' }
+                    ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary-soft)' }
+                    : { background: 'var(--input-bg)', color: 'var(--muted-fg)', borderColor: 'var(--border)' }
                   }
                   title={cat.name}
                 >
@@ -273,7 +274,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                 className="flex items-center gap-2 self-start rounded-xl px-4 py-2.5 text-sm font-semibold transition-all"
                 style={useGas
                   ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                  : { background: 'var(--muted)', color: 'var(--muted-fg)' }
+                  : { background: 'var(--muted)', color: 'var(--muted-fg)', border: '1px solid var(--border)' }
                 }
               >
                 <Icon id="car" size={16} filled={useGas} />
@@ -281,11 +282,11 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
               </button>
 
               {useGas && (
-                <div className="flex flex-col gap-4 rounded-2xl p-4" style={{ background: 'var(--muted)' }}>
+                <div className="flex flex-col gap-4 rounded-2xl p-4 border" style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}>
 
                   {/* Vehicle selector */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
+                    <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
                       Véhicule
                     </label>
                     {settings.vehicles.length === 0 ? (
@@ -301,7 +302,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                             className="rounded-xl px-3 py-2 text-sm font-medium transition-all"
                             style={gasVehicleId === v.id
                               ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                              : { background: 'var(--card)', color: 'var(--fg)' }
+                              : { background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border)' }
                             }
                           >
                             {v.name}
@@ -315,7 +316,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                   {/* Trip preset selector */}
                   {settings.trips.length > 0 && (
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
+                      <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
                         Trajet préenregistré
                       </label>
                       <div className="flex gap-2 flex-wrap">
@@ -324,7 +325,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                           className="rounded-xl px-3 py-2 text-sm font-medium transition-all"
                           style={gasTripId === null
                             ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                            : { background: 'var(--card)', color: 'var(--fg)' }
+                            : { background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border)' }
                           }
                         >
                           Manuel
@@ -336,7 +337,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                             className="rounded-xl px-3 py-2 text-sm font-medium transition-all"
                             style={gasTripId === t.id
                               ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                              : { background: 'var(--card)', color: 'var(--fg)' }
+                              : { background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border)' }
                             }
                           >
                             {t.name}
@@ -350,7 +351,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                   {/* Distance + Toll */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
+                      <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
                         Distance (km)
                       </label>
                       <input
@@ -359,11 +360,11 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                         onChange={e => { setGasKm(e.target.value); setGasTripId(null) }}
                         placeholder="0"
                         className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
-                        style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+                        style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
+                      <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
                         Péage ($)
                       </label>
                       <input
@@ -372,14 +373,14 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                         onChange={e => { setGasToll(e.target.value); setGasTripId(null) }}
                         placeholder="0,00"
                         className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
-                        style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+                        style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                       />
                     </div>
                   </div>
 
                   {/* Gas price */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
+                    <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
                       Prix essence ($/L)
                     </label>
                     <input
@@ -387,8 +388,8 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                       value={gasPrice}
                       onChange={e => setGasPrice(e.target.value)}
                       placeholder="1,520"
-                      className="w-full rounded-xl px-4 py-3 text-base outline-none border text-right"
-                      style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+                      className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
+                      style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                     />
                   </div>
 
@@ -409,29 +410,42 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
             </div>
           )}
 
-          {/* Date + Amount row */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Mobile: Date standalone + PIN pad for amount (hidden when gas active) */}
+          <div className="sm:hidden flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
-                Date
-              </label>
+              <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Date</label>
               <input
                 type="date"
                 value={date}
                 onChange={e => setDate(e.target.value)}
-                className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border"
-                style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+                className="w-full rounded-xl px-4 py-3 text-base outline-none border"
+                style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+              />
+            </div>
+            {!useGas && (
+              <PinPad value={amountStr} onChange={setAmountStr} label="Montant ($)" />
+            )}
+          </div>
+
+          {/* Desktop: Date + Amount grid */}
+          <div className="hidden sm:grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Date</label>
+              <input
+                type="date"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                className="w-full rounded-xl px-4 py-3 sm:text-sm outline-none border"
+                style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
-                Montant ($)
-              </label>
+              <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Montant ($)</label>
               {useGas ? (
                 <div
-                  className="w-full rounded-xl px-4 py-3 text-base text-right border"
+                  className="w-full rounded-xl px-4 py-3 sm:text-sm text-right border"
                   style={{
-                    background: 'var(--muted)', borderColor: 'var(--border)',
+                    background: 'var(--input-bg)', borderColor: 'var(--border)',
                     color: gasAmount !== null ? 'var(--fg)' : 'var(--muted-fg)',
                     fontFamily: "'Geist Mono', monospace",
                   }}
@@ -444,9 +458,9 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                   value={amountStr}
                   onChange={e => setAmountStr(e.target.value)}
                   placeholder="0,00"
-                  className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
+                  className="w-full rounded-xl px-4 py-3 sm:text-sm outline-none border text-right"
                   style={{
-                    background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)',
+                    background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)',
                     fontFamily: "'Geist Mono', monospace",
                   }}
                 />
@@ -456,7 +470,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 
           {/* Payer */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
               Payé par
             </label>
             <Seg
@@ -471,7 +485,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 
           {/* Split */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
               Partage
             </label>
             <Seg
@@ -526,7 +540,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 
           {/* Mobile: Enregistrer at bottom of scroll */}
           <button
-            className="sm:hidden w-full py-4 sm:py-3.5 rounded-2xl text-sm sm:text-[15px] font-semibold mt-2"
+            className="sm:hidden w-full py-4 rounded-2xl text-sm font-semibold mt-2"
             style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
             onClick={handleSave}
             disabled={saving}
@@ -538,7 +552,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
         {/* Desktop: sticky footer */}
         <div className="hidden sm:block px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
           <button
-            className="w-full py-4 sm:py-3.5 rounded-2xl text-sm sm:text-[15px] font-semibold"
+            className="w-full py-4 sm:py-3.5 rounded-2xl sm:text-[15px] text-sm font-semibold"
             style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
             onClick={handleSave}
             disabled={saving}
@@ -561,14 +575,14 @@ function Seg<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="flex rounded-xl p-1 gap-1" style={{ background: 'var(--muted)' }}>
+    <div className="flex rounded-xl p-1 gap-1" style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}>
       {options.map(opt => (
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
           className="flex-1 py-2.5 rounded-lg text-sm transition-all"
           style={value === opt.value
-            ? { background: 'var(--card)', color: 'var(--fg)', fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
+            ? { background: 'var(--input-bg)', color: 'var(--fg)', fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
             : { color: 'var(--muted-fg)' }
           }
         >

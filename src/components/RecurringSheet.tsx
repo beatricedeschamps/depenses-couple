@@ -5,6 +5,7 @@ import { useHousehold } from '@/contexts/HouseholdContext'
 import { useCategories } from '@/hooks/useCategories'
 import { Icon } from '@/lib/icons'
 import { formatCAD } from '@/lib/utils'
+import { PinPad } from '@/components/PinPad'
 import type { RecurringRow, RecurringType, Frequency, Person, Split, PriceRate } from '@/lib/database.types'
 
 interface RecurringSheetProps {
@@ -199,7 +200,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
 
       <div
         className="relative w-full sm:max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
-        style={{ background: 'var(--card)', maxHeight: '92svh' }}
+        style={{ background: 'var(--appbg)', maxHeight: '92svh' }}
       >
         {/* Mobile handle */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
@@ -211,7 +212,6 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
           className="flex items-center px-5 sm:px-6 pt-2 sm:pt-5 pb-3 sm:pb-4 border-b flex-shrink-0"
           style={{ borderColor: 'var(--border)' }}
         >
-          {/* Mobile: Annuler left */}
           <button
             className="sm:hidden text-sm font-medium"
             style={{ color: 'var(--primary)', width: 64 }}
@@ -219,22 +219,19 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
           >
             Annuler
           </button>
-          {/* Title */}
           <h2
             className="flex-1 text-center sm:text-left text-base font-semibold"
             style={{ color: 'var(--fg)' }}
           >
             {title}
           </h2>
-          {/* Desktop: X close */}
           <button
-            className="hidden sm:flex w-8 h-8 sm:w-[30px] sm:h-[30px] rounded-full items-center justify-center text-base font-medium"
+            className="hidden sm:flex w-8 h-8 sm:w-[30px] sm:h-[30px] rounded-xl items-center justify-center text-base font-medium"
             style={{ background: 'var(--muted)', color: 'var(--muted-fg)' }}
             onClick={onClose}
           >
             ✕
           </button>
-          {/* Mobile spacer */}
           <div className="sm:hidden" style={{ width: 64 }} />
         </div>
 
@@ -260,7 +257,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
               onChange={e => setDescription(e.target.value)}
               placeholder={type === 'continue' ? 'Ex. Loyer' : 'Ex. Taxes municipales'}
               className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border"
-              style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+              style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
               autoFocus
             />
           </Field>
@@ -272,10 +269,10 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                 <button
                   key={cat.id}
                   onClick={() => setCategoryId(cat.id === categoryId ? null : cat.id)}
-                  className="flex-shrink-0 rounded-xl p-3 transition-all"
+                  className="flex-shrink-0 rounded-xl p-3 transition-all border"
                   style={cat.id === categoryId
-                    ? { background: 'var(--primary-soft)', color: 'var(--primary)' }
-                    : { background: 'var(--muted)', color: 'var(--muted-fg)' }
+                    ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary-soft)' }
+                    : { background: 'var(--input-bg)', color: 'var(--muted-fg)', borderColor: 'var(--border)' }
                   }
                   title={cat.name}
                 >
@@ -292,21 +289,47 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                 <Seg options={FREQ_OPTIONS} value={frequency} onChange={setFrequency} />
               </Field>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Mobile: date standalone + PIN pad (add) or readonly (edit) */}
+              <div className="sm:hidden flex flex-col gap-4">
                 <Field label="Facturé à partir de">
                   <input
                     type="date"
                     value={startDate}
                     onChange={e => setStartDate(e.target.value)}
                     className="w-full rounded-xl px-4 py-3 text-base outline-none border"
-                    style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+                  />
+                </Field>
+                {!recurring ? (
+                  <PinPad value={continueAmountStr} onChange={setContinueAmountStr} label="Montant / période ($)" />
+                ) : (
+                  <Field label="Montant actuel">
+                    <div
+                      className="w-full rounded-xl px-4 py-3 text-base border"
+                      style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+                    >
+                      {formatCAD(currentPrice())}
+                    </div>
+                  </Field>
+                )}
+              </div>
+
+              {/* Desktop: date + amount grid */}
+              <div className="hidden sm:grid grid-cols-2 gap-3">
+                <Field label="Facturé à partir de">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border"
+                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
                   />
                 </Field>
                 <Field label="Montant / période ($)">
                   {recurring ? (
                     <div
-                      className="w-full rounded-xl px-4 py-3 text-base border"
-                      style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+                      className="w-full rounded-xl px-4 py-3 text-base sm:text-sm border"
+                      style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                     >
                       {formatCAD(currentPrice())}
                     </div>
@@ -317,7 +340,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                       onChange={e => setContinueAmountStr(e.target.value)}
                       placeholder="0,00"
                       className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
-                      style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+                      style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                     />
                   )}
                 </Field>
@@ -327,14 +350,14 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
               {recurring && (
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>Historique des prix</span>
+                    <span className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Historique des prix</span>
                     <button onClick={() => setShowAddRate(v => !v)} className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>
                       + Ajouter
                     </button>
                   </div>
                   <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
                     {[...rates].sort((a, b) => b.from.localeCompare(a.from)).map((r, i, arr) => (
-                      <div key={r.from} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      <div key={r.from} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', background: 'var(--input-bg)' }}>
                         <div className="flex-1">
                           <div className="text-sm font-semibold" style={{ color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}>{formatCAD(r.amount)}</div>
                           <div className="text-xs" style={{ color: 'var(--muted-fg)' }}>depuis le {r.from}</div>
@@ -346,7 +369,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                     ))}
                   </div>
                   {showAddRate && (
-                    <div className="rounded-2xl border p-3 flex flex-col gap-2" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+                    <div className="rounded-2xl border p-3 flex flex-col gap-2" style={{ borderColor: 'var(--border)', background: 'var(--input-bg)' }}>
                       <div className="grid grid-cols-2 gap-2">
                         <input type="date" value={newRateFrom} onChange={e => setNewRateFrom(e.target.value)}
                           className="rounded-xl px-3 py-2 text-sm outline-none border"
@@ -375,7 +398,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                     value={String(occurrences)}
                     onChange={e => setOccurrences(Math.max(1, parseInt(e.target.value) || 1))}
                     className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-center"
-                    style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                   />
                 </Field>
                 <Field label="Année">
@@ -384,20 +407,28 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                     value={String(year)}
                     onChange={e => setYear(parseInt(e.target.value) || CURRENT_YEAR)}
                     className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-center"
-                    style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                   />
                 </Field>
               </div>
-              <Field label="Prix par occurrence ($)">
-                <input
-                  inputMode="decimal"
-                  value={seriePrice}
-                  onChange={e => setSeriePrice(e.target.value)}
-                  placeholder="0,00"
-                  className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
-                  style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
-                />
-              </Field>
+
+              {/* Mobile: PIN pad */}
+              <div className="sm:hidden">
+                <PinPad value={seriePrice} onChange={setSeriePrice} label="Prix par occurrence ($)" />
+              </div>
+              {/* Desktop: text input */}
+              <div className="hidden sm:block">
+                <Field label="Prix par occurrence ($)">
+                  <input
+                    inputMode="decimal"
+                    value={seriePrice}
+                    onChange={e => setSeriePrice(e.target.value)}
+                    placeholder="0,00"
+                    className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
+                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+                  />
+                </Field>
+              </div>
             </>
           )}
 
@@ -456,7 +487,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
 
           {/* Mobile: Enregistrer at bottom of scroll */}
           <button
-            className="sm:hidden w-full py-4 sm:py-3.5 rounded-2xl text-sm sm:text-[15px] font-semibold mt-2"
+            className="sm:hidden w-full py-4 rounded-2xl text-sm font-semibold mt-2"
             style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
             onClick={handleSave}
             disabled={saving}
@@ -468,7 +499,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
         {/* Desktop: sticky footer */}
         <div className="hidden sm:block px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
           <button
-            className="w-full py-4 sm:py-3.5 rounded-2xl text-sm sm:text-[15px] font-semibold"
+            className="w-full py-4 sm:py-3.5 rounded-2xl sm:text-[15px] text-sm font-semibold"
             style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
             onClick={handleSave}
             disabled={saving}
@@ -486,7 +517,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>{label}</label>
+      <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>{label}</label>
       {children}
     </div>
   )
@@ -502,14 +533,14 @@ function Seg<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="flex rounded-xl p-1 gap-1" style={{ background: 'var(--muted)' }}>
+    <div className="flex rounded-xl p-1 gap-1" style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}>
       {options.map(opt => (
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
           className="flex-1 py-2.5 rounded-lg text-sm transition-all"
           style={value === opt.value
-            ? { background: 'var(--card)', color: 'var(--fg)', fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
+            ? { background: 'var(--input-bg)', color: 'var(--fg)', fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
             : { color: 'var(--muted-fg)' }
           }
         >

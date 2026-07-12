@@ -316,7 +316,7 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
 
       <div
         className="relative w-full max-w-2xl flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
-        style={{ background: 'var(--card)', maxHeight: '92svh' }}
+        style={{ background: 'var(--appbg)', maxHeight: '92svh' }}
       >
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden">
@@ -353,7 +353,7 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
           <div className="overflow-y-auto flex flex-col gap-5 p-5 pb-8">
             {/* Default payer */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>
+              <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>
                 Titulaire du compte
               </label>
               <div className="flex gap-2">
@@ -499,7 +499,7 @@ function ReviewRow({
           value={row.date}
           onChange={e => onChange({ date: e.target.value })}
           className="rounded-lg px-2 py-1.5 text-xs border outline-none"
-          style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+          style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
         />
         <div className="flex-1" />
         <input
@@ -510,7 +510,7 @@ function ReviewRow({
             if (!isNaN(v) && v > 0) onChange({ amount: v })
           }}
           className="rounded-lg px-2 py-1.5 text-xs border outline-none text-right w-24"
-          style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+          style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
         />
         {row.isDuplicate && (
           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: 'var(--muted)', color: 'var(--muted-fg)' }}>
@@ -524,7 +524,7 @@ function ReviewRow({
         value={row.description}
         onChange={e => onChange({ description: e.target.value })}
         className="w-full rounded-lg px-3 py-1.5 text-sm border outline-none"
-        style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+        style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
       />
 
       {/* Category + Payer + Split */}

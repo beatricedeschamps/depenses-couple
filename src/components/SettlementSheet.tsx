@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
 import { formatCAD } from '@/lib/utils'
+import { PinPad } from '@/components/PinPad'
 import type { Person, SettlementRow } from '@/lib/database.types'
 
 interface SettlementSheetProps {
@@ -97,7 +98,7 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
 
       <div
         className="relative w-full sm:max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
-        style={{ background: 'var(--card)', maxHeight: '92svh' }}
+        style={{ background: 'var(--appbg)', maxHeight: '92svh' }}
       >
         {/* Mobile handle */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
@@ -120,7 +121,7 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
             {title}
           </h2>
           <button
-            className="hidden sm:flex w-8 h-8 sm:w-[30px] sm:h-[30px] rounded-full items-center justify-center text-base font-medium"
+            className="hidden sm:flex w-8 h-8 sm:w-[30px] sm:h-[30px] rounded-xl items-center justify-center text-base font-medium"
             style={{ background: 'var(--muted)', color: 'var(--muted-fg)' }}
             onClick={onClose}
           >
@@ -132,23 +133,26 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
         {/* Scrollable body */}
         <div className="overflow-y-auto flex flex-col gap-4 p-5 flex-1">
 
-          {/* Amount */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>Montant ($)</label>
+          {/* Amount — mobile: PIN pad, desktop: text input */}
+          <div className="sm:hidden">
+            <PinPad value={amountStr} onChange={setAmountStr} label="Montant ($)" />
+          </div>
+          <div className="hidden sm:flex flex-col gap-1.5">
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Montant ($)</label>
             <input
               inputMode="decimal"
               value={amountStr}
               onChange={e => setAmountStr(e.target.value)}
               placeholder="0,00"
-              className="w-full rounded-xl px-4 py-4 text-2xl font-bold outline-none border text-center"
-              style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+              className="w-full rounded-xl px-4 py-3 sm:text-sm font-bold outline-none border text-center"
+              style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
               autoFocus
             />
           </div>
 
           {/* Who pays */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>Qui rembourse</label>
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Qui rembourse</label>
             <Seg
               options={[
                 { value: 'bea' as Person, label: 'Béa' },
@@ -166,13 +170,13 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
 
           {/* Date */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted-fg)' }}>Date</label>
+            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Date</label>
             <input
               type="date"
               value={date}
               onChange={e => setDate(e.target.value)}
               className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border"
-              style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+              style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
             />
           </div>
 
@@ -196,7 +200,7 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
 
           {/* Mobile: Enregistrer at bottom of scroll */}
           <button
-            className="sm:hidden w-full py-4 sm:py-3.5 rounded-2xl text-sm sm:text-[15px] font-semibold mt-2"
+            className="sm:hidden w-full py-4 rounded-2xl text-sm font-semibold mt-2"
             style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
             onClick={handleSave}
             disabled={saving}
@@ -208,7 +212,7 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
         {/* Desktop: sticky footer */}
         <div className="hidden sm:block px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
           <button
-            className="w-full py-4 sm:py-3.5 rounded-2xl text-sm sm:text-[15px] font-semibold"
+            className="w-full py-4 sm:py-3.5 rounded-2xl sm:text-[15px] text-sm font-semibold"
             style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
             onClick={handleSave}
             disabled={saving}
@@ -231,14 +235,14 @@ function Seg<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="flex rounded-xl p-1 gap-1" style={{ background: 'var(--muted)' }}>
+    <div className="flex rounded-xl p-1 gap-1" style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}>
       {options.map(opt => (
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
           className="flex-1 py-2.5 rounded-lg text-sm transition-all"
           style={value === opt.value
-            ? { background: 'var(--card)', color: 'var(--fg)', fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
+            ? { background: 'var(--input-bg)', color: 'var(--fg)', fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
             : { color: 'var(--muted-fg)' }
           }
         >

@@ -269,9 +269,9 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                 <button
                   key={cat.id}
                   onClick={() => setCategoryId(cat.id === categoryId ? null : cat.id)}
-                  className="flex-shrink-0 rounded-xl p-3 transition-all border"
+                  className="flex-shrink-0 flex items-center justify-center rounded-xl p-3 transition-all border"
                   style={cat.id === categoryId
-                    ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary-soft)' }
+                    ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)' }
                     : { background: 'var(--input-bg)', color: 'var(--muted-fg)', borderColor: 'var(--border)' }
                   }
                   title={cat.name}

@@ -58,7 +58,7 @@ export function PinPad({ value, onChange, label }: PinPadProps) {
               type="button"
               className="rounded-xl py-3.5 text-xl font-semibold select-none transition-opacity active:opacity-60"
               style={{
-                background: isBs ? 'var(--muted)' : 'var(--input-bg)',
+                background: 'var(--input-bg)',
                 color: 'var(--fg)',
                 border: '1px solid var(--border)',
               }}

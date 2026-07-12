@@ -253,9 +253,9 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
                 <button
                   key={cat.id}
                   onClick={() => setCategoryId(cat.id === categoryId ? null : cat.id)}
-                  className="flex-shrink-0 rounded-xl p-3 transition-all border"
+                  className="flex-shrink-0 flex items-center justify-center rounded-xl p-3 transition-all border"
                   style={cat.id === categoryId
-                    ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary-soft)' }
+                    ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)' }
                     : { background: 'var(--input-bg)', color: 'var(--muted-fg)', borderColor: 'var(--border)' }
                   }
                   title={cat.name}
@@ -499,17 +499,6 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
             />
           </div>
 
-          {/* Preview */}
-          {finalAmount() !== null && (
-            <div className="rounded-xl p-4" style={{ background: 'var(--primary-soft)' }}>
-              <PreviewSplit
-                amount={finalAmount()!}
-                payer={payer}
-                split={split}
-              />
-            </div>
-          )}
-
           {/* Error */}
           {error && (
             <p className="text-sm font-medium" style={{ color: 'var(--danger)' }}>{error}</p>
@@ -593,31 +582,3 @@ function Seg<T extends string>({
   )
 }
 
-function PreviewSplit({ amount, payer, split }: { amount: number; payer: Person; split: Split }) {
-  const payerName = payer === 'bea' ? 'Béa' : 'Phil'
-  const otherName = payer === 'bea' ? 'Phil' : 'Béa'
-
-  if (split === 'phil') {
-    return <p className="text-sm" style={{ color: 'var(--primary-soft-fg)' }}>
-      Dépense de Phil — {payer === 'phil'
-        ? `Phil avance ${formatCAD(amount)}, Phil doit 100 %`
-        : `Béa avance ${formatCAD(amount)}, Phil lui doit ${formatCAD(amount)}`}
-    </p>
-  }
-  if (split === 'bea') {
-    return <p className="text-sm" style={{ color: 'var(--primary-soft-fg)' }}>
-      Dépense de Béa — {payer === 'bea'
-        ? `Béa avance ${formatCAD(amount)}, Béa doit 100 %`
-        : `Phil avance ${formatCAD(amount)}, Béa lui doit ${formatCAD(amount)}`}
-    </p>
-  }
-  const cents = Math.round(amount * 100)
-  const half = Math.floor(cents / 2)
-  const other = half / 100
-  return (
-    <p className="text-sm" style={{ color: 'var(--primary-soft-fg)' }}>
-      {payerName} avance {formatCAD(amount)} — {otherName} doit {formatCAD(other)} à {payerName}
-      {cents % 2 !== 0 ? ' (cent supérieur pour le payeur)' : ''}
-    </p>
-  )
-}

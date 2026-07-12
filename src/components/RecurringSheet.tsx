@@ -221,14 +221,14 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
           </button>
           {/* Title */}
           <h2
-            className="flex-1 text-center sm:text-left text-base sm:text-xl font-bold"
+            className="flex-1 text-center sm:text-left text-base font-semibold"
             style={{ color: 'var(--fg)' }}
           >
             {title}
           </h2>
           {/* Desktop: X close */}
           <button
-            className="hidden sm:flex w-8 h-8 rounded-full items-center justify-center text-base font-medium"
+            className="hidden sm:flex w-8 h-8 sm:w-[30px] sm:h-[30px] rounded-full items-center justify-center text-base font-medium"
             style={{ background: 'var(--muted)', color: 'var(--muted-fg)' }}
             onClick={onClose}
           >
@@ -239,7 +239,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex flex-col gap-5 p-5 sm:p-6 flex-1">
+        <div className="overflow-y-auto flex flex-col gap-4 p-5 flex-1">
 
           {/* Type toggle — add mode only */}
           {!recurring && (
@@ -259,7 +259,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder={type === 'continue' ? 'Ex. Loyer' : 'Ex. Taxes municipales'}
-              className="w-full rounded-xl px-4 py-3 text-base outline-none border"
+              className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border"
               style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }}
               autoFocus
             />
@@ -316,7 +316,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                       value={continueAmountStr}
                       onChange={e => setContinueAmountStr(e.target.value)}
                       placeholder="0,00"
-                      className="w-full rounded-xl px-4 py-3 text-base outline-none border text-right"
+                      className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
                       style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                     />
                   )}
@@ -374,7 +374,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                     inputMode="numeric"
                     value={String(occurrences)}
                     onChange={e => setOccurrences(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full rounded-xl px-4 py-3 text-base outline-none border text-center"
+                    className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-center"
                     style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                   />
                 </Field>
@@ -383,7 +383,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                     inputMode="numeric"
                     value={String(year)}
                     onChange={e => setYear(parseInt(e.target.value) || CURRENT_YEAR)}
-                    className="w-full rounded-xl px-4 py-3 text-base outline-none border text-center"
+                    className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-center"
                     style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                   />
                 </Field>
@@ -394,7 +394,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
                   value={seriePrice}
                   onChange={e => setSeriePrice(e.target.value)}
                   placeholder="0,00"
-                  className="w-full rounded-xl px-4 py-3 text-base outline-none border text-right"
+                  className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-right"
                   style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
                 />
               </Field>
@@ -456,7 +456,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
 
           {/* Mobile: Enregistrer at bottom of scroll */}
           <button
-            className="sm:hidden w-full py-4 rounded-2xl text-base font-semibold mt-2"
+            className="sm:hidden w-full py-4 sm:py-3.5 rounded-2xl text-sm sm:text-[15px] font-semibold mt-2"
             style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
             onClick={handleSave}
             disabled={saving}
@@ -468,7 +468,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
         {/* Desktop: sticky footer */}
         <div className="hidden sm:block px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
           <button
-            className="w-full py-4 rounded-2xl text-base font-semibold"
+            className="w-full py-4 sm:py-3.5 rounded-2xl text-sm sm:text-[15px] font-semibold"
             style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
             onClick={handleSave}
             disabled={saving}

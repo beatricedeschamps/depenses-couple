@@ -116,11 +116,11 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
           >
             Annuler
           </button>
-          <h2 className="flex-1 text-center sm:text-left text-base sm:text-xl font-bold" style={{ color: 'var(--fg)' }}>
+          <h2 className="flex-1 text-center sm:text-left text-base font-semibold" style={{ color: 'var(--fg)' }}>
             {title}
           </h2>
           <button
-            className="hidden sm:flex w-8 h-8 rounded-full items-center justify-center text-base font-medium"
+            className="hidden sm:flex w-8 h-8 sm:w-[30px] sm:h-[30px] rounded-full items-center justify-center text-base font-medium"
             style={{ background: 'var(--muted)', color: 'var(--muted-fg)' }}
             onClick={onClose}
           >
@@ -130,7 +130,7 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex flex-col gap-5 p-5 sm:p-6 flex-1">
+        <div className="overflow-y-auto flex flex-col gap-4 p-5 flex-1">
 
           {/* Amount */}
           <div className="flex flex-col gap-1.5">
@@ -171,7 +171,7 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
               type="date"
               value={date}
               onChange={e => setDate(e.target.value)}
-              className="w-full rounded-xl px-4 py-3 text-base outline-none border"
+              className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border"
               style={{ background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--fg)' }}
             />
           </div>
@@ -196,7 +196,7 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
 
           {/* Mobile: Enregistrer at bottom of scroll */}
           <button
-            className="sm:hidden w-full py-4 rounded-2xl text-base font-semibold mt-2"
+            className="sm:hidden w-full py-4 sm:py-3.5 rounded-2xl text-sm sm:text-[15px] font-semibold mt-2"
             style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
             onClick={handleSave}
             disabled={saving}
@@ -208,7 +208,7 @@ export function SettlementSheet({ open, onClose, settlement, defaultAmount, defa
         {/* Desktop: sticky footer */}
         <div className="hidden sm:block px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
           <button
-            className="w-full py-4 rounded-2xl text-base font-semibold"
+            className="w-full py-4 sm:py-3.5 rounded-2xl text-sm sm:text-[15px] font-semibold"
             style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
             onClick={handleSave}
             disabled={saving}

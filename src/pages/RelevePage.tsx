@@ -267,8 +267,8 @@ function ActiveFilterPills({ filters, onChange }: { filters: Filters; onChange: 
         <button
           key={i}
           onClick={p.onRemove}
-          className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
-          style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
+          className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border"
+          style={{ background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)' }}
         >
           {p.label}
           <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -300,7 +300,7 @@ function FilterPanel({ filters, years, onChange, onClose, anchorEl }: {
     onChange({ ...filters, types: filters.types.includes(t) ? filters.types.filter(x => x !== t) : [...filters.types, t] })
   }
 
-  const isDesktop = window.innerWidth >= 640
+  const isDesktop = window.innerWidth >= 1024
   const anchorRect = (isDesktop && anchorEl) ? anchorEl.getBoundingClientRect() : null
 
   const body = (

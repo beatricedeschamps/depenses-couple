@@ -247,33 +247,31 @@ function ActiveFilterPills({ filters, onChange }: { filters: Filters; onChange: 
   }
   const SPLIT_LABELS: Record<string, string> = { half: '50/50', phil: 'Phil seul', bea: 'Béa seule' }
 
-  const pills: { label: string; onRemove: () => void }[] = []
-  if (filters.types.length > 0) {
-    pills.push({ label: filters.types.map(t => KIND_LABELS[t]).join(', '), onRemove: () => onChange({ ...filters, types: [] }) })
-  }
+  const pills: { key: string; label: string; onRemove: () => void }[] = []
+  filters.types.forEach(t => {
+    pills.push({ key: `type-${t}`, label: KIND_LABELS[t], onRemove: () => onChange({ ...filters, types: filters.types.filter(x => x !== t) }) })
+  })
   if (filters.year !== 'all') {
-    pills.push({ label: filters.year, onRemove: () => onChange({ ...filters, year: 'all' }) })
+    pills.push({ key: 'year', label: filters.year, onRemove: () => onChange({ ...filters, year: 'all' }) })
   }
   if (filters.payer !== 'all') {
-    pills.push({ label: filters.payer === 'bea' ? 'Béa' : 'Phil', onRemove: () => onChange({ ...filters, payer: 'all' }) })
+    pills.push({ key: 'payer', label: filters.payer === 'bea' ? 'Béa' : 'Phil', onRemove: () => onChange({ ...filters, payer: 'all' }) })
   }
   if (filters.split !== 'all') {
-    pills.push({ label: SPLIT_LABELS[filters.split], onRemove: () => onChange({ ...filters, split: 'all' }) })
+    pills.push({ key: 'split', label: SPLIT_LABELS[filters.split], onRemove: () => onChange({ ...filters, split: 'all' }) })
   }
 
   return (
     <>
-      {pills.map((p, i) => (
+      {pills.map(p => (
         <button
-          key={i}
+          key={p.key}
           onClick={p.onRemove}
-          className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border"
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border"
           style={{ background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)' }}
         >
           {p.label}
-          <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-            <path d="M2 2l6 6M8 2l-6 6"/>
-          </svg>
+          <span style={{ fontSize: 9, lineHeight: 1, opacity: 0.8 }}>✕</span>
         </button>
       ))}
     </>

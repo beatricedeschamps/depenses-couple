@@ -2,11 +2,12 @@ import { useState, useMemo, useRef } from 'react'
 import { useLedger } from '@/hooks/useLedger'
 import { useCategories } from '@/hooks/useCategories'
 import { ExpenseSheet } from '@/components/ExpenseSheet'
+import { RecurringSheet } from '@/components/RecurringSheet'
 import { Icon } from '@/lib/icons'
 import { formatCAD } from '@/lib/utils'
 import { exportToXlsx } from '@/lib/exportXlsx'
 import type { LedgerEntry } from '@/lib/balance'
-import type { ExpenseRow, CategoryRow } from '@/lib/database.types'
+import type { ExpenseRow, CategoryRow, RecurringRow } from '@/lib/database.types'
 
 const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.']
 const PAGE_SIZE = 40
@@ -74,6 +75,8 @@ export function RelevePage() {
   const [visible, setVisible] = useState(PAGE_SIZE)
   const [editExpense, setEditExpense] = useState<ExpenseRow | undefined>()
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [editRecurring, setEditRecurring] = useState<RecurringRow | undefined>()
+  const [recurringSheetOpen, setRecurringSheetOpen] = useState(false)
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const filterBtnRef = useRef<HTMLButtonElement>(null)
@@ -96,6 +99,9 @@ export function RelevePage() {
     if (e.kind === 'ponct' && e.expense) {
       setEditExpense(e.expense)
       setSheetOpen(true)
+    } else if (e.kind === 'recur' && e.recurring) {
+      setEditRecurring(e.recurring)
+      setRecurringSheetOpen(true)
     }
   }
 
@@ -233,6 +239,12 @@ export function RelevePage() {
         open={sheetOpen}
         onClose={() => { setSheetOpen(false); setEditExpense(undefined) }}
         expense={editExpense}
+        onSaved={reload}
+      />
+      <RecurringSheet
+        open={recurringSheetOpen}
+        onClose={() => { setRecurringSheetOpen(false); setEditRecurring(undefined) }}
+        recurring={editRecurring}
         onSaved={reload}
       />
     </div>
@@ -409,7 +421,7 @@ function LedgerRow({ entry, catMap, isLast, onClick }: {
 }) {
   const cat = entry.categoryId ? catMap[entry.categoryId] : null
   const iconId = cat?.icon ?? (entry.kind === 'remb' ? 'refund' : 'receipt')
-  const isClickable = entry.kind === 'ponct'
+  const isClickable = entry.kind === 'ponct' || entry.kind === 'recur'
 
   return (
     <div onClick={isClickable ? onClick : undefined} className="flex items-center gap-3 px-4 py-3"

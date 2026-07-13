@@ -181,7 +181,7 @@ export function RelevePage() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3v12M8 11l4 4 4-4M5 21h14"/>
             </svg>
-            xlsx
+            Exporter
           </button>
           <span className="text-xs" style={{ color: 'var(--muted-fg)' }}>
             {filtered.length} entrée{filtered.length !== 1 ? 's' : ''}
@@ -422,43 +422,68 @@ function LedgerRow({ entry, catMap, isLast, onClick }: {
   const cat = entry.categoryId ? catMap[entry.categoryId] : null
   const iconId = cat?.icon ?? (entry.kind === 'remb' ? 'refund' : 'receipt')
   const isClickable = entry.kind === 'ponct' || entry.kind === 'recur'
+  const splitLabel = entry.split === 'half' ? '50/50' : entry.split === 'phil' ? '100% Phil' : '100% Béa'
 
   return (
-    <div onClick={isClickable ? onClick : undefined} className="flex items-center gap-3 px-4 py-3"
-      style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)', cursor: isClickable ? 'pointer' : 'default' }}>
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{ background: entry.kind === 'remb' ? 'var(--primary-soft)' : 'var(--muted)', color: entry.kind === 'remb' ? 'var(--primary)' : 'var(--muted-fg)' }}>
+    <div
+      onClick={isClickable ? onClick : undefined}
+      className="flex items-center gap-4 px-4 py-3"
+      style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)', cursor: isClickable ? 'pointer' : 'default' }}
+    >
+      {/* Leading icon */}
+      <div
+        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ background: entry.kind === 'remb' ? 'var(--primary-soft)' : 'var(--muted)', color: entry.kind === 'remb' ? 'var(--primary)' : 'var(--muted-fg)' }}
+      >
         <Icon id={iconId} size={18} />
       </div>
+
+      {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>
-          {entry.kind === 'remb'
-            ? `Remboursement · ${entry.fromPerson === 'bea' ? 'Béa → Phil' : 'Phil → Béa'}`
-            : entry.description}
-        </div>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          {entry.kind !== 'remb' && (
-            <span className="text-xs font-medium" style={{ color: 'var(--muted-fg)' }}>{entry.payer === 'bea' ? 'Béa' : 'Phil'}</span>
-          )}
-          {cat && <><span style={{ color: 'var(--border)' }}>·</span><span className="text-xs" style={{ color: 'var(--muted-fg)' }}>{cat.name}</span></>}
-          {entry.kind === 'recur' && <><span style={{ color: 'var(--border)' }}>·</span><span className="text-xs" style={{ color: 'var(--muted-fg)' }}>{entry.recurring?.type === 'serie' ? 'Série' : 'Continue'}</span></>}
-        </div>
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <div className="text-right">
-          <div className="text-sm font-semibold" style={{ color: entry.kind === 'remb' ? 'var(--primary)' : 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}>
+        {/* Ligne 1 : description (gauche) · montant (droite) */}
+        <div className="flex items-baseline justify-between gap-3">
+          <div className="text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>
+            {entry.kind === 'remb'
+              ? `Remboursement · ${entry.fromPerson === 'bea' ? 'Béa → Phil' : 'Phil → Béa'}`
+              : entry.description}
+          </div>
+          <div className="text-sm font-semibold flex-shrink-0" style={{ color: entry.kind === 'remb' ? 'var(--primary)' : 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}>
             {entry.kind === 'remb' ? '+' : ''}{formatCAD(entry.amount)}
           </div>
-          {entry.kind !== 'remb' && entry.split && (
-            <div className="text-xs" style={{ color: 'var(--muted-fg)' }}>{entry.split === 'half' ? '50/50' : entry.split === 'phil' ? 'Phil' : 'Béa'}</div>
-          )}
         </div>
-        {isClickable && (
-          <svg width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--border)' }}>
-            <path d="M1 1l6 6-6 6" />
-          </svg>
+
+        {/* Ligne 2 : payé par · récurrent (gauche) | tag partage (droite) */}
+        {entry.kind !== 'remb' && (
+          <div className="flex items-center justify-between gap-2 mt-0.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs" style={{ color: 'var(--muted-fg)' }}>
+                Payé par {entry.payer === 'bea' ? 'Béa' : 'Phil'}
+              </span>
+              {entry.kind === 'recur' && (
+                <>
+                  <span style={{ color: 'var(--border)' }}>·</span>
+                  <span className="text-xs" style={{ color: 'var(--muted-fg)' }}>Récurrent</span>
+                </>
+              )}
+            </div>
+            {entry.split && (
+              <span
+                className="flex-shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-md"
+                style={{ background: 'var(--muted)', color: 'var(--muted-fg)' }}
+              >
+                {splitLabel}
+              </span>
+            )}
+          </div>
         )}
       </div>
+
+      {/* Chevron */}
+      {isClickable && (
+        <svg width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--border)', flexShrink: 0 }}>
+          <path d="M1 1l6 6-6 6" />
+        </svg>
+      )}
     </div>
   )
 }

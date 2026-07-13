@@ -222,6 +222,7 @@ export function AppShell() {
                 onPonctuelle={() => { setPlusMenuOpen(false); setAddSheetOpen(true) }}
                 onImport={() => { setPlusMenuOpen(false); setImportPdfOpen(true) }}
                 onRecurrente={() => { setPlusMenuOpen(false); setAddRecurringOpen(true) }}
+                sheet
               />
             )}
           </div>
@@ -354,9 +355,48 @@ interface PlusMenuProps {
   onImport: () => void
   onRecurrente: () => void
   popupPos?: React.CSSProperties
+  sheet?: boolean
 }
 
-function PlusMenu({ onClose, onPonctuelle, onImport, onRecurrente, popupPos }: PlusMenuProps) {
+function PlusMenu({ onClose, onPonctuelle, onImport, onRecurrente, popupPos, sheet }: PlusMenuProps) {
+  const actions = (
+    <>
+      <MenuAction
+        label="Dépense ponctuelle"
+        icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12v18l-2.5-1.6L13 21l-2.5-1.6L8 21l-2-1.6z"/><path d="M9 8h6M9 12h6"/></svg>}
+        onClick={onPonctuelle}
+      />
+      <div style={{ height: 1, background: 'var(--border)' }} />
+      <MenuAction
+        label="Importer un relevé PDF"
+        icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>}
+        onClick={onImport}
+      />
+      <div style={{ height: 1, background: 'var(--border)' }} />
+      <MenuAction
+        label="Dépense récurrente"
+        icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>}
+        onClick={onRecurrente}
+      />
+    </>
+  )
+
+  if (sheet) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose} />
+        <div className="relative w-full rounded-t-3xl overflow-hidden" style={{ background: 'var(--card)' }}>
+          <div className="flex justify-center pt-3 pb-1">
+            <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
+          </div>
+          <div style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}>
+            {actions}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
@@ -368,23 +408,7 @@ function PlusMenu({ onClose, onPonctuelle, onImport, onRecurrente, popupPos }: P
           ...(popupPos ?? { bottom: '110%', left: '50%', transform: 'translateX(-50%)' }),
         }}
       >
-        <MenuAction
-          label="Dépense ponctuelle"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12v18l-2.5-1.6L13 21l-2.5-1.6L8 21l-2-1.6z"/><path d="M9 8h6M9 12h6"/></svg>}
-          onClick={onPonctuelle}
-        />
-        <div style={{ height: 1, background: 'var(--border)' }} />
-        <MenuAction
-          label="Importer un relevé PDF"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>}
-          onClick={onImport}
-        />
-        <div style={{ height: 1, background: 'var(--border)' }} />
-        <MenuAction
-          label="Dépense récurrente"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>}
-          onClick={onRecurrente}
-        />
+        {actions}
       </div>
     </>
   )

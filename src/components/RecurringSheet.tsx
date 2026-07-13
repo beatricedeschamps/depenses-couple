@@ -47,7 +47,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
   const [newRateAmount, setNewRateAmount] = useState('')
   const [showAddRate, setShowAddRate] = useState(false)
   // Serie fields
-  const [occurrences, setOccurrences] = useState(1)
+  const [occurrencesStr, setOccurrencesStr] = useState('')
   const [year, setYear] = useState(CURRENT_YEAR)
   const [seriePrice, setSeriePrice] = useState('')
   // Gas state (for car category, add mode only)
@@ -94,7 +94,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
         ? currentRateRows[currentRateRows.length - 1].amount
         : (recurring.rates[0]?.amount ?? 0)
       setContinueAmountStr(String(currentAmt).replace('.', ','))
-      setOccurrences(recurring.occurrences ?? 1)
+      setOccurrencesStr(recurring.occurrences != null ? String(recurring.occurrences) : '')
       setYear(recurring.year ?? CURRENT_YEAR)
       setSeriePrice(recurring.rates[0] ? String(recurring.rates[0].amount).replace('.', ',') : '')
     } else {
@@ -107,7 +107,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
       setStartDate(TODAY)
       setContinueAmountStr('')
       setRates([{ from: TODAY, amount: 0 }])
-      setOccurrences(1)
+      setOccurrencesStr('')
       setYear(CURRENT_YEAR)
       setSeriePrice('')
       setGasVehicleId(''); setGasTripId(null); setGasKm(''); setGasToll('0'); setGasPrice('')
@@ -182,7 +182,7 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
       rates: finalRates,
       ...(type === 'continue'
         ? { type: 'continue' as const, frequency, start_date: startDate, occurrences: null, year: null }
-        : { type: 'serie' as const, frequency: null, start_date: null, occurrences, year }),
+        : { type: 'serie' as const, frequency: null, start_date: null, occurrences: parseInt(occurrencesStr) || 1, year }),
     }
 
     if (recurring) {
@@ -448,16 +448,26 @@ export function RecurringSheet({ open, onClose, recurring, defaultType = 'contin
             <>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Occurrences / an">
-                  <input inputMode="numeric" value={String(occurrences)}
-                    onChange={e => setOccurrences(Math.max(1, parseInt(e.target.value) || 1))}
+                  <input
+                    inputMode="numeric"
+                    value={occurrencesStr}
+                    onChange={e => setOccurrencesStr(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Ex. 12"
                     className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-center"
-                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }} />
+                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }}
+                  />
                 </Field>
                 <Field label="Année">
-                  <input inputMode="numeric" value={String(year)}
-                    onChange={e => setYear(parseInt(e.target.value) || CURRENT_YEAR)}
+                  <select
+                    value={year}
+                    onChange={e => setYear(parseInt(e.target.value))}
                     className="w-full rounded-xl px-4 py-3 text-base sm:text-sm outline-none border text-center"
-                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)', fontFamily: "'Geist Mono', monospace" }} />
+                    style={{ background: 'var(--input-bg)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+                  >
+                    {Array.from({ length: 8 }, (_, i) => CURRENT_YEAR - 1 + i).map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
                 </Field>
               </div>
 

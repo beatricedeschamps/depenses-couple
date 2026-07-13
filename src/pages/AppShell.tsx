@@ -271,6 +271,29 @@ export function AppShell() {
 
         {/* Footer sidebar */}
         <div className="p-3 border-t flex flex-col gap-2" style={{ borderColor: 'var(--border)' }}>
+          {/* Ajouter */}
+          <div className="relative">
+            <button
+              onClick={() => setPlusMenuOpen(v => !v)}
+              className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-semibold"
+              style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Ajouter
+            </button>
+            {plusMenuOpen && (
+              <PlusMenu
+                onClose={() => setPlusMenuOpen(false)}
+                onPonctuelle={() => { setPlusMenuOpen(false); setAddSheetOpen(true) }}
+                onImport={() => { setPlusMenuOpen(false); setImportPdfOpen(true) }}
+                onRecurrente={() => { setPlusMenuOpen(false); setAddRecurringOpen(true) }}
+                popupPos={{ bottom: '110%', left: 0 }}
+              />
+            )}
+          </div>
+
           <button onClick={toggleTheme} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium" style={{ color: 'var(--muted-fg)' }}>
             {theme === 'dark'
               ? <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>Mode clair</>
@@ -296,28 +319,6 @@ export function AppShell() {
       <main className="flex-1 overflow-auto">
         <TabContent tab={tab} />
       </main>
-
-      {/* Bouton + flottant (laptop) */}
-      <div className="fixed bottom-8 right-8 z-40">
-        <div className="relative">
-          <button
-            onClick={() => setPlusMenuOpen(v => !v)}
-            className="w-14 h-14 rounded-full flex items-center justify-center shadow-xl text-white"
-            style={{ background: 'var(--primary)' }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-          </button>
-          {plusMenuOpen && (
-            <PlusMenu
-              onClose={() => setPlusMenuOpen(false)}
-              onPonctuelle={() => { setPlusMenuOpen(false); setAddSheetOpen(true) }}
-              onImport={() => { setPlusMenuOpen(false); setImportPdfOpen(true) }}
-              onRecurrente={() => { setPlusMenuOpen(false); setAddRecurringOpen(true) }}
-              upward
-            />
-          )}
-        </div>
-      </div>
 
       <ExpenseSheet open={addSheetOpen} onClose={() => setAddSheetOpen(false)} />
       <RecurringSheet open={addRecurringOpen} onClose={() => setAddRecurringOpen(false)} />
@@ -352,10 +353,10 @@ interface PlusMenuProps {
   onPonctuelle: () => void
   onImport: () => void
   onRecurrente: () => void
-  upward?: boolean
+  popupPos?: React.CSSProperties
 }
 
-function PlusMenu({ onClose, onPonctuelle, onImport, onRecurrente, upward }: PlusMenuProps) {
+function PlusMenu({ onClose, onPonctuelle, onImport, onRecurrente, popupPos }: PlusMenuProps) {
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
@@ -364,9 +365,7 @@ function PlusMenu({ onClose, onPonctuelle, onImport, onRecurrente, upward }: Plu
         style={{
           background: 'var(--card)',
           borderColor: 'var(--border)',
-          ...(upward
-            ? { bottom: '110%', right: 0 }
-            : { bottom: '110%', left: '50%', transform: 'translateX(-50%)' }),
+          ...(popupPos ?? { bottom: '110%', left: '50%', transform: 'translateX(-50%)' }),
         }}
       >
         <MenuAction

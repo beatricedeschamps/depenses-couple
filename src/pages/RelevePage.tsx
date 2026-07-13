@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useLedger } from '@/hooks/useLedger'
 import { useCategories } from '@/hooks/useCategories'
 import { ExpenseSheet } from '@/components/ExpenseSheet'
@@ -76,6 +76,7 @@ export function RelevePage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+  const filterBtnRef = useRef<HTMLButtonElement>(null)
 
   const catMap = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories])
 
@@ -147,6 +148,7 @@ export function RelevePage() {
       {/* Filter bar */}
       <div className="flex items-center gap-2 px-4 py-3">
         <button
+          ref={filterBtnRef}
           onClick={() => setFilterPanelOpen(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border"
           style={{
@@ -223,6 +225,7 @@ export function RelevePage() {
           years={years}
           onChange={setFilters}
           onClose={() => setFilterPanelOpen(false)}
+          anchorEl={filterBtnRef.current}
         />
       )}
 
@@ -238,11 +241,12 @@ export function RelevePage() {
 
 // ── Filter panel ──────────────────────────────────────────────────────────────
 
-function FilterPanel({ filters, years, onChange, onClose }: {
+function FilterPanel({ filters, years, onChange, onClose, anchorEl }: {
   filters: Filters
   years: string[]
   onChange: (f: Filters) => void
   onClose: () => void
+  anchorEl?: HTMLElement | null
 }) {
   const [draft, setDraft] = useState<Filters>({ ...filters })
 
@@ -263,66 +267,93 @@ function FilterPanel({ filters, years, onChange, onClose }: {
   function apply() { onChange(draft); onClose() }
   function reset() { setDraft(DEFAULT_FILTERS) }
 
+  const isDesktop = window.innerWidth >= 640
+  const anchorRect = (isDesktop && anchorEl) ? anchorEl.getBoundingClientRect() : null
+
+  const filterBody = (
+    <div className="overflow-y-auto p-5 flex flex-col gap-5 pb-6 max-h-[70vh]">
+      <FilterSection label="Type">
+        <div className="flex flex-wrap gap-2">
+          {KINDS.map(k => (
+            <button key={k.value} onClick={() => toggleType(k.value)}
+              className="px-3 py-2 rounded-xl text-sm font-medium"
+              style={draft.types.includes(k.value)
+                ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
+                : { background: 'var(--muted)', color: 'var(--fg)' }
+              }>
+              {k.label}
+            </button>
+          ))}
+        </div>
+      </FilterSection>
+      <FilterSection label="Année">
+        <div className="flex flex-wrap gap-2">
+          <PillOption label="Toutes" active={draft.year === 'all'} onClick={() => setDraft(d => ({ ...d, year: 'all' }))} />
+          {years.map(y => (
+            <PillOption key={y} label={y} active={draft.year === y} onClick={() => setDraft(d => ({ ...d, year: y }))} />
+          ))}
+        </div>
+      </FilterSection>
+      <FilterSection label="Payé par">
+        <div className="flex gap-2">
+          {(['all', 'bea', 'phil'] as const).map(p => (
+            <PillOption key={p} label={p === 'all' ? 'Tous' : p === 'bea' ? 'Béa' : 'Phil'}
+              active={draft.payer === p} onClick={() => setDraft(d => ({ ...d, payer: p }))} />
+          ))}
+        </div>
+      </FilterSection>
+      <FilterSection label="Partage">
+        <div className="flex gap-2 flex-wrap">
+          {(['all', 'half', 'phil', 'bea'] as const).map(s => (
+            <PillOption key={s}
+              label={s === 'all' ? 'Tous' : s === 'half' ? '50/50' : s === 'phil' ? 'Phil seul' : 'Béa seule'}
+              active={draft.split === s} onClick={() => setDraft(d => ({ ...d, split: s }))} />
+          ))}
+        </div>
+      </FilterSection>
+    </div>
+  )
+
+  const filterHeader = (
+    <div className="flex items-center justify-between px-5 pt-3 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
+      <button onClick={reset} className="text-sm font-medium" style={{ color: 'var(--muted-fg)' }}>Réinitialiser</button>
+      <h2 className="text-base font-semibold" style={{ color: 'var(--fg)' }}>Filtres</h2>
+      <button onClick={apply} className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>Appliquer</button>
+    </div>
+  )
+
+  // Desktop: popover anchored to the filter button
+  if (anchorRect) {
+    return (
+      <>
+        <div className="fixed inset-0 z-40" onClick={onClose} />
+        <div
+          className="fixed z-50 rounded-2xl border shadow-xl overflow-hidden"
+          style={{
+            background: 'var(--card)',
+            borderColor: 'var(--border)',
+            top: anchorRect.bottom + 8,
+            left: anchorRect.left,
+            width: 300,
+          }}
+        >
+          {filterHeader}
+          {filterBody}
+        </div>
+      </>
+    )
+  }
+
+  // Mobile: bottom sheet
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose} />
-      <div className="relative w-full max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden" style={{ background: 'var(--card)', maxHeight: '80svh' }}>
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+      <div className="relative w-full flex flex-col rounded-t-3xl overflow-hidden" style={{ background: 'var(--card)', maxHeight: '80svh' }}>
+        <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
         </div>
-        <div className="flex items-center justify-between px-5 pt-2 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
-          <button onClick={() => { reset() }} className="text-sm font-medium" style={{ color: 'var(--muted-fg)' }}>Réinitialiser</button>
-          <h2 className="text-base font-semibold" style={{ color: 'var(--fg)' }}>Filtres</h2>
-          <button onClick={apply} className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>Appliquer</button>
-        </div>
-        <div className="overflow-y-auto p-5 flex flex-col gap-5 pb-8">
-          {/* Types */}
-          <FilterSection label="Type">
-            <div className="flex flex-wrap gap-2">
-              {KINDS.map(k => (
-                <button key={k.value} onClick={() => toggleType(k.value)}
-                  className="px-3 py-2 rounded-xl text-sm font-medium"
-                  style={draft.types.includes(k.value)
-                    ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
-                    : { background: 'var(--muted)', color: 'var(--fg)' }
-                  }>
-                  {k.label}
-                </button>
-              ))}
-            </div>
-          </FilterSection>
-
-          {/* Year */}
-          <FilterSection label="Année">
-            <div className="flex flex-wrap gap-2">
-              <PillOption label="Toutes" active={draft.year === 'all'} onClick={() => setDraft(d => ({ ...d, year: 'all' }))} />
-              {years.map(y => (
-                <PillOption key={y} label={y} active={draft.year === y} onClick={() => setDraft(d => ({ ...d, year: y }))} />
-              ))}
-            </div>
-          </FilterSection>
-
-          {/* Payer */}
-          <FilterSection label="Payé par">
-            <div className="flex gap-2">
-              {(['all', 'bea', 'phil'] as const).map(p => (
-                <PillOption key={p} label={p === 'all' ? 'Tous' : p === 'bea' ? 'Béa' : 'Phil'}
-                  active={draft.payer === p} onClick={() => setDraft(d => ({ ...d, payer: p }))} />
-              ))}
-            </div>
-          </FilterSection>
-
-          {/* Split */}
-          <FilterSection label="Partage">
-            <div className="flex gap-2 flex-wrap">
-              {(['all', 'half', 'phil', 'bea'] as const).map(s => (
-                <PillOption key={s}
-                  label={s === 'all' ? 'Tous' : s === 'half' ? '50/50' : s === 'phil' ? 'Phil seul' : 'Béa seule'}
-                  active={draft.split === s} onClick={() => setDraft(d => ({ ...d, split: s }))} />
-              ))}
-            </div>
-          </FilterSection>
-        </div>
+        {filterHeader}
+        {filterBody}
       </div>
     </div>
   )

@@ -149,38 +149,38 @@ export function RelevePage() {
       <div className="flex items-center gap-2 px-4 py-3">
         <button
           ref={filterBtnRef}
-          onClick={() => setFilterPanelOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border"
+          onClick={() => setFilterPanelOpen(v => !v)}
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border"
           style={{
-            background: active ? 'var(--primary)' : 'var(--card)',
-            borderColor: active ? 'var(--primary)' : 'var(--border)',
-            color: active ? 'var(--primary-fg)' : 'var(--fg)',
+            background: filterPanelOpen ? 'var(--primary-soft)' : 'var(--card)',
+            borderColor: filterPanelOpen || active ? 'var(--primary)' : 'var(--border)',
+            color: filterPanelOpen || active ? 'var(--primary)' : 'var(--fg)',
           }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 5h16M7 12h10M10 19h4"/>
           </svg>
-          {active ? 'Filtres actifs' : 'Filtrer'}
+          Filtrer
         </button>
-        {active && (
-          <button onClick={() => setFilters(DEFAULT_FILTERS)} className="text-xs font-medium" style={{ color: 'var(--muted-fg)' }}>
-            Réinitialiser
+        {/* Active filter pills */}
+        <div className="flex items-center gap-1.5 flex-1 overflow-x-auto min-w-0">
+          <ActiveFilterPills filters={filters} onChange={setFilters} />
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={doExport}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border"
+            style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3v12M8 11l4 4 4-4M5 21h14"/>
+            </svg>
+            xlsx
           </button>
-        )}
-        <div className="flex-1" />
-        <button
-          onClick={doExport}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border"
-          style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--fg)' }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 3v12M8 11l4 4 4-4M5 21h14"/>
-          </svg>
-          xlsx
-        </button>
-        <span className="text-xs" style={{ color: 'var(--muted-fg)' }}>
-          {filtered.length} entrée{filtered.length !== 1 ? 's' : ''}
-        </span>
+          <span className="text-xs" style={{ color: 'var(--muted-fg)' }}>
+            {filtered.length} entrée{filtered.length !== 1 ? 's' : ''}
+          </span>
+        </div>
       </div>
 
       {/* List */}
@@ -239,6 +239,47 @@ export function RelevePage() {
   )
 }
 
+// ── Active filter pills ────────────────────────────────────────────────────────
+
+function ActiveFilterPills({ filters, onChange }: { filters: Filters; onChange: (f: Filters) => void }) {
+  const KIND_LABELS: Record<EntryKind, string> = {
+    ponctuelle: 'Ponctuelle', continue: 'Continue', serie: 'Série', remboursement: 'Remb.',
+  }
+  const SPLIT_LABELS: Record<string, string> = { half: '50/50', phil: 'Phil seul', bea: 'Béa seule' }
+
+  const pills: { label: string; onRemove: () => void }[] = []
+  if (filters.types.length > 0) {
+    pills.push({ label: filters.types.map(t => KIND_LABELS[t]).join(', '), onRemove: () => onChange({ ...filters, types: [] }) })
+  }
+  if (filters.year !== 'all') {
+    pills.push({ label: filters.year, onRemove: () => onChange({ ...filters, year: 'all' }) })
+  }
+  if (filters.payer !== 'all') {
+    pills.push({ label: filters.payer === 'bea' ? 'Béa' : 'Phil', onRemove: () => onChange({ ...filters, payer: 'all' }) })
+  }
+  if (filters.split !== 'all') {
+    pills.push({ label: SPLIT_LABELS[filters.split], onRemove: () => onChange({ ...filters, split: 'all' }) })
+  }
+
+  return (
+    <>
+      {pills.map((p, i) => (
+        <button
+          key={i}
+          onClick={p.onRemove}
+          className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
+          style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
+        >
+          {p.label}
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M2 2l6 6M8 2l-6 6"/>
+          </svg>
+        </button>
+      ))}
+    </>
+  )
+}
+
 // ── Filter panel ──────────────────────────────────────────────────────────────
 
 function FilterPanel({ filters, years, onChange, onClose, anchorEl }: {
@@ -248,8 +289,6 @@ function FilterPanel({ filters, years, onChange, onClose, anchorEl }: {
   onClose: () => void
   anchorEl?: HTMLElement | null
 }) {
-  const [draft, setDraft] = useState<Filters>({ ...filters })
-
   const KINDS: { value: EntryKind; label: string }[] = [
     { value: 'ponctuelle', label: 'Ponctuelles' },
     { value: 'continue', label: 'Continues' },
@@ -258,26 +297,20 @@ function FilterPanel({ filters, years, onChange, onClose, anchorEl }: {
   ]
 
   function toggleType(t: EntryKind) {
-    setDraft(d => ({
-      ...d,
-      types: d.types.includes(t) ? d.types.filter(x => x !== t) : [...d.types, t],
-    }))
+    onChange({ ...filters, types: filters.types.includes(t) ? filters.types.filter(x => x !== t) : [...filters.types, t] })
   }
-
-  function apply() { onChange(draft); onClose() }
-  function reset() { setDraft(DEFAULT_FILTERS) }
 
   const isDesktop = window.innerWidth >= 640
   const anchorRect = (isDesktop && anchorEl) ? anchorEl.getBoundingClientRect() : null
 
-  const filterBody = (
-    <div className="overflow-y-auto p-5 flex flex-col gap-5 pb-6 max-h-[70vh]">
+  const body = (
+    <div className="p-4 flex flex-col gap-4">
       <FilterSection label="Type">
         <div className="flex flex-wrap gap-2">
           {KINDS.map(k => (
             <button key={k.value} onClick={() => toggleType(k.value)}
               className="px-3 py-2 rounded-xl text-sm font-medium"
-              style={draft.types.includes(k.value)
+              style={filters.types.includes(k.value)
                 ? { background: 'var(--primary)', color: 'var(--primary-fg)' }
                 : { background: 'var(--muted)', color: 'var(--fg)' }
               }>
@@ -288,9 +321,9 @@ function FilterPanel({ filters, years, onChange, onClose, anchorEl }: {
       </FilterSection>
       <FilterSection label="Année">
         <div className="flex flex-wrap gap-2">
-          <PillOption label="Toutes" active={draft.year === 'all'} onClick={() => setDraft(d => ({ ...d, year: 'all' }))} />
+          <PillOption label="Toutes" active={filters.year === 'all'} onClick={() => onChange({ ...filters, year: 'all' })} />
           {years.map(y => (
-            <PillOption key={y} label={y} active={draft.year === y} onClick={() => setDraft(d => ({ ...d, year: y }))} />
+            <PillOption key={y} label={y} active={filters.year === y} onClick={() => onChange({ ...filters, year: y })} />
           ))}
         </div>
       </FilterSection>
@@ -298,7 +331,7 @@ function FilterPanel({ filters, years, onChange, onClose, anchorEl }: {
         <div className="flex gap-2">
           {(['all', 'bea', 'phil'] as const).map(p => (
             <PillOption key={p} label={p === 'all' ? 'Tous' : p === 'bea' ? 'Béa' : 'Phil'}
-              active={draft.payer === p} onClick={() => setDraft(d => ({ ...d, payer: p }))} />
+              active={filters.payer === p} onClick={() => onChange({ ...filters, payer: p })} />
           ))}
         </div>
       </FilterSection>
@@ -307,22 +340,14 @@ function FilterPanel({ filters, years, onChange, onClose, anchorEl }: {
           {(['all', 'half', 'phil', 'bea'] as const).map(s => (
             <PillOption key={s}
               label={s === 'all' ? 'Tous' : s === 'half' ? '50/50' : s === 'phil' ? 'Phil seul' : 'Béa seule'}
-              active={draft.split === s} onClick={() => setDraft(d => ({ ...d, split: s }))} />
+              active={filters.split === s} onClick={() => onChange({ ...filters, split: s })} />
           ))}
         </div>
       </FilterSection>
     </div>
   )
 
-  const filterHeader = (
-    <div className="flex items-center justify-between px-5 pt-3 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
-      <button onClick={reset} className="text-sm font-medium" style={{ color: 'var(--muted-fg)' }}>Réinitialiser</button>
-      <h2 className="text-base font-semibold" style={{ color: 'var(--fg)' }}>Filtres</h2>
-      <button onClick={apply} className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>Appliquer</button>
-    </div>
-  )
-
-  // Desktop: popover anchored to the filter button
+  // Desktop: headerless popover anchored to the filter button
   if (anchorRect) {
     return (
       <>
@@ -337,23 +362,25 @@ function FilterPanel({ filters, years, onChange, onClose, anchorEl }: {
             width: 300,
           }}
         >
-          {filterHeader}
-          {filterBody}
+          {body}
         </div>
       </>
     )
   }
 
-  // Mobile: bottom sheet
+  // Mobile: bottom sheet, close via handle or backdrop
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose} />
       <div className="relative w-full flex flex-col rounded-t-3xl overflow-hidden" style={{ background: 'var(--card)', maxHeight: '80svh' }}>
-        <div className="flex justify-center pt-3 pb-1">
+        <div className="flex justify-center pt-3 pb-2">
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
         </div>
-        {filterHeader}
-        {filterBody}
+        <div className="flex items-center justify-between px-5 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
+          <h2 className="text-base font-semibold" style={{ color: 'var(--fg)' }}>Filtres</h2>
+          <button onClick={onClose} className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>Fermer</button>
+        </div>
+        <div className="overflow-y-auto">{body}</div>
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLedger } from '@/hooks/useLedger'
 import { SettlementSheet } from '@/components/SettlementSheet'
 import { Icon } from '@/lib/icons'
@@ -16,6 +16,14 @@ export function SoldePage() {
   const { ledger, balance, loading, reload } = useLedger()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editSettlement, setEditSettlement] = useState<SettlementRow | undefined>()
+
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const currentYear = new Date().getFullYear()
   const ys = String(currentYear)
@@ -51,7 +59,13 @@ export function SoldePage() {
   }
 
   return (
-    <div className="flex flex-col gap-0 pb-10">
+    <div style={isDesktop ? { maxWidth: 620, margin: '0 auto' } : {}}>
+      {isDesktop && (
+        <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--fg)', padding: '30px 20px 24px', margin: 0 }}>
+          Solde
+        </h1>
+      )}
+      <div className="flex flex-col gap-0 pb-10">
       {/* Solde principal */}
       <div className="mx-4 mt-4 rounded-2xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
         <div className="px-5 pt-5 pb-4">
@@ -146,6 +160,7 @@ export function SoldePage() {
         defaultFrom={debtor}
         onSaved={reload}
       />
+      </div>
     </div>
   )
 }

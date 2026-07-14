@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRecurrings } from '@/hooks/useRecurrings'
 import { useCategories } from '@/hooks/useCategories'
 import { RecurringSheet } from '@/components/RecurringSheet'
@@ -46,6 +46,14 @@ export function RecurrentesPage() {
   const [finishedOpen, setFinishedOpen] = useState(false)
   const [archivedOpen, setArchivedOpen] = useState(false)
 
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]))
 
   const actives = recurrings.filter(r => !r.archived)
@@ -70,7 +78,13 @@ export function RecurrentesPage() {
   }
 
   return (
-    <div className="flex flex-col pb-10">
+    <div style={isDesktop ? { maxWidth: 680, margin: '0 auto' } : {}}>
+      {isDesktop && (
+        <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--fg)', padding: '30px 20px 24px', margin: 0 }}>
+          Récurrentes
+        </h1>
+      )}
+      <div className="flex flex-col pb-10">
       {/* Continues */}
       <Section title="Continues">
         {continues.length === 0 ? (
@@ -123,6 +137,7 @@ export function RecurrentesPage() {
         recurring={editRecurring}
         onSaved={reload}
       />
+      </div>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSettings } from '@/hooks/useSettings'
 import { useCategories } from '@/hooks/useCategories'
 import { useHousehold } from '@/contexts/HouseholdContext'
@@ -85,6 +85,14 @@ export function ParamètresPage() {
     reloadCats()
   }
 
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   // ── Prix essence ──
   const [gasPriceStr, setGasPriceStr] = useState('')
   const [gasPriceSaved, setGasPriceSaved] = useState(false)
@@ -98,7 +106,13 @@ export function ParamètresPage() {
   }
 
   return (
-    <div className="flex flex-col pb-16">
+    <div style={isDesktop ? { maxWidth: 640, margin: '0 auto' } : {}}>
+      {isDesktop && (
+        <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--fg)', padding: '30px 20px 24px', margin: 0 }}>
+          Paramètres
+        </h1>
+      )}
+      <div className="flex flex-col pb-16">
       {/* ── Prix essence ── */}
       <Section title="Prix d'essence par défaut ($/L)">
         <div className="mx-4 flex gap-2">
@@ -271,6 +285,7 @@ export function ParamètresPage() {
           </div>
         </div>
       </Section>
+      </div>
     </div>
   )
 }

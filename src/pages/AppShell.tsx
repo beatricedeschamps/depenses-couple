@@ -240,86 +240,130 @@ export function AppShell() {
 
   // Layout laptop
   return (
-    <div className="flex min-h-svh" style={{ background: 'var(--appbg)' }}>
-      {/* Sidebar */}
-      <aside
-        className="w-60 flex-shrink-0 flex flex-col sticky top-0 h-svh border-r"
-        style={{ background: 'var(--sidebar-bg)', borderColor: 'var(--border)' }}
+    <div className="flex flex-col min-h-svh" style={{ background: 'var(--appbg)' }}>
+      {/* Global sticky header */}
+      <header
+        className="sticky top-0 z-40 flex items-center justify-between flex-shrink-0"
+        style={{ height: 58, padding: '0 22px', background: 'var(--toolbar)', backdropFilter: 'blur(14px)', borderBottom: '1px solid var(--border)' }}
       >
-        {/* Logo */}
-        <div className="flex items-center gap-3 px-5 py-5 border-b" style={{ borderColor: 'var(--border)' }}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}>P&amp;B</div>
-          <span className="font-semibold text-sm" style={{ color: 'var(--fg)', letterSpacing: '-0.01em' }}>Dépenses partagées</span>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 p-3 flex flex-col gap-1">
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all"
-              style={tab === t.id
-                ? { background: 'var(--primary-soft)', color: 'var(--primary)' }
-                : { color: 'var(--muted-fg)' }
-              }
-            >
-              <span style={{ color: tab === t.id ? 'var(--primary)' : 'var(--muted-fg)' }}>{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
-        </nav>
-
-        {/* Footer sidebar */}
-        <div className="p-3 border-t flex flex-col gap-2" style={{ borderColor: 'var(--border)' }}>
-          {/* Ajouter */}
-          <div className="relative">
-            <button
-              onClick={() => setPlusMenuOpen(v => !v)}
-              className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-semibold"
-              style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M12 5v14M5 12h14"/>
-              </svg>
-              Ajouter
-            </button>
-            {plusMenuOpen && (
-              <PlusMenu
-                onClose={() => setPlusMenuOpen(false)}
-                onPonctuelle={() => { setPlusMenuOpen(false); setAddSheetOpen(true) }}
-                onImport={() => { setPlusMenuOpen(false); setImportPdfOpen(true) }}
-                onRecurrente={() => { setPlusMenuOpen(false); setAddRecurringOpen(true) }}
-                popupPos={{ bottom: '110%', left: 0 }}
-              />
-            )}
+        <div className="flex items-center gap-3">
+          <div
+            className="flex items-center justify-center text-xs font-bold flex-shrink-0"
+            style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--primary)', color: 'var(--primary-fg)' }}
+          >
+            P&amp;B
           </div>
-
-          <button onClick={toggleTheme} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium" style={{ color: 'var(--muted-fg)' }}>
+          <span className="font-semibold" style={{ fontSize: 15, color: 'var(--fg)', letterSpacing: '-0.01em' }}>Dépenses partagées</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={toggleTheme} className="w-8 h-8 flex items-center justify-center rounded-full" style={{ color: 'var(--muted-fg)' }}>
             {theme === 'dark'
-              ? <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>Mode clair</>
-              : <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>Mode sombre</>
+              ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+              : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
             }
           </button>
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ background: 'var(--primary)', color: 'var(--primary-fg)' }}>
-              {userInitial}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>{profile?.name}</div>
-              {partner && <div className="text-xs truncate" style={{ color: 'var(--muted-fg)' }}>avec {partnerName}</div>}
-            </div>
-            <button onClick={signOut} title="Se déconnecter" style={{ color: 'var(--muted-fg)' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
-            </button>
+          <div
+            className="flex items-center justify-center rounded-full text-sm font-bold"
+            style={{ width: 34, height: 34, background: 'var(--primary)', color: 'var(--primary-fg)' }}
+          >
+            {userInitial}
           </div>
         </div>
-      </aside>
+      </header>
 
-      {/* Contenu */}
-      <main className="flex-1 overflow-auto">
-        <TabContent tab={tab} />
-      </main>
+      {/* Body: sidebar + main */}
+      <div className="flex flex-1 min-h-0">
+        {/* Sidebar */}
+        <aside
+          className="flex-shrink-0 flex flex-col overflow-y-auto border-r"
+          style={{
+            width: 214,
+            background: 'var(--card)',
+            borderColor: 'var(--border)',
+            padding: '20px 12px',
+            position: 'sticky',
+            top: 58,
+            height: 'calc(100vh - 58px)',
+          }}
+        >
+          {/* Nav */}
+          <nav className="flex-1 flex flex-col" style={{ gap: 3 }}>
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className="flex items-center gap-2.5 w-full text-left transition-all"
+                style={tab === t.id
+                  ? { padding: '9px 12px', borderRadius: 10, fontSize: 14.5, fontWeight: 600, background: 'var(--primary-soft)', color: 'var(--primary)' }
+                  : { padding: '9px 12px', borderRadius: 10, fontSize: 14.5, fontWeight: 600, color: 'var(--muted-fg)' }
+                }
+              >
+                <span style={{ color: tab === t.id ? 'var(--primary)' : 'var(--muted-fg)' }}>{t.icon}</span>
+                {t.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Footer */}
+          <div className="flex flex-col border-t pt-3" style={{ borderColor: 'var(--border)', gap: 6, marginTop: 'auto' }}>
+            {/* Ajouter */}
+            <div className="relative">
+              <button
+                onClick={() => setPlusMenuOpen(v => !v)}
+                className="flex items-center gap-2.5 w-full text-left"
+                style={{
+                  padding: 12,
+                  borderRadius: 11,
+                  fontSize: 14.5,
+                  fontWeight: 600,
+                  background: 'var(--primary)',
+                  color: 'var(--primary-fg)',
+                  boxShadow: '0 4px 12px rgba(37,99,235,0.28)',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M12 5v14M5 12h14"/>
+                </svg>
+                Ajouter
+              </button>
+              {plusMenuOpen && (
+                <PlusMenu
+                  onClose={() => setPlusMenuOpen(false)}
+                  onPonctuelle={() => { setPlusMenuOpen(false); setAddSheetOpen(true) }}
+                  onImport={() => { setPlusMenuOpen(false); setImportPdfOpen(true) }}
+                  onRecurrente={() => { setPlusMenuOpen(false); setAddRecurringOpen(true) }}
+                  popupPos={{ bottom: '110%', left: 0 }}
+                />
+              )}
+            </div>
+
+            {/* Profile */}
+            <div className="flex items-center gap-2.5" style={{ padding: '6px 4px', marginTop: 4 }}>
+              <div
+                className="flex-shrink-0 flex items-center justify-center rounded-full text-sm font-bold"
+                style={{ width: 32, height: 32, background: 'var(--primary)', color: 'var(--primary-fg)' }}
+              >
+                {userInitial}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--fg)' }}>{profile?.name}</div>
+                {partner && <div className="truncate" style={{ fontSize: 11, color: 'var(--muted-fg)' }}>avec {partnerName}</div>}
+              </div>
+              <button onClick={signOut} title="Se déconnecter" className="flex-shrink-0" style={{ color: 'var(--muted-fg)' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                  <path d="M16 17l5-5-5-5M21 12H9"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        {/* Contenu */}
+        <main className="flex-1 overflow-auto min-w-0">
+          <TabContent tab={tab} />
+        </main>
+      </div>
 
       <ExpenseSheet open={addSheetOpen} onClose={() => setAddSheetOpen(false)} />
       <RecurringSheet open={addRecurringOpen} onClose={() => setAddRecurringOpen(false)} />

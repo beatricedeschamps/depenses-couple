@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLedger } from '@/hooks/useLedger'
 import { useCategories } from '@/hooks/useCategories'
 import { ExpenseSheet } from '@/components/ExpenseSheet'
@@ -81,9 +81,16 @@ export function RelevePage() {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const filterBtnRef = useRef<HTMLButtonElement>(null)
 
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   const catMap = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories])
 
-  // Available years from ledger
   const years = useMemo(() => {
     const ys = new Set(ledger.map(e => e.date.slice(0, 4)))
     return [...ys].sort((a, b) => b.localeCompare(a))
@@ -109,10 +116,156 @@ export function RelevePage() {
     exportToXlsx(filtered, catMap)
   }
 
-  const abs = Math.abs(balance)
-  const debtor = balance > 0 ? 'Béa' : 'Phil'
-  const creditor = balance > 0 ? 'Phil' : 'Béa'
+  const sheets = (
+    <>
+      <ExpenseSheet
+        open={sheetOpen}
+        onClose={() => { setSheetOpen(false); setEditExpense(undefined) }}
+        expense={editExpense}
+        onSaved={reload}
+      />
+      <RecurringSheet
+        open={recurringSheetOpen}
+        onClose={() => { setRecurringSheetOpen(false); setEditRecurring(undefined) }}
+        recurring={editRecurring}
+        onSaved={reload}
+      />
+    </>
+  )
 
+  const filterBar = (
+    <div className="flex items-center gap-2">
+      <button
+        ref={filterBtnRef}
+        onClick={() => setFilterPanelOpen(v => !v)}
+        className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border"
+        style={{
+          background: filterPanelOpen ? 'var(--primary-soft)' : 'var(--card)',
+          borderColor: filterPanelOpen || active ? 'var(--primary)' : 'var(--border)',
+          color: filterPanelOpen || active ? 'var(--primary)' : 'var(--fg)',
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 5h16M7 12h10M10 19h4"/>
+        </svg>
+        Filtrer
+      </button>
+      <div className="flex items-center gap-1.5 flex-1 overflow-x-auto min-w-0">
+        <ActiveFilterPills filters={filters} onChange={setFilters} />
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button
+          onClick={doExport}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border"
+          style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3v12M8 11l4 4 4-4M5 21h14"/>
+          </svg>
+          Exporter
+        </button>
+        <span className="text-xs" style={{ color: 'var(--muted-fg)' }}>
+          {filtered.length} entrée{filtered.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+    </div>
+  )
+
+  const transactionList = (desktop: boolean) => (
+    loading ? (
+      <div className="flex items-center justify-center py-16"><Spinner /></div>
+    ) : filtered.length === 0 ? (
+      ledger.length === 0 ? <EmptyState /> : (
+        <div
+          className="rounded-2xl border p-8 text-center text-sm"
+          style={{ borderColor: 'var(--border)', borderStyle: 'dashed', color: 'var(--muted-fg)' }}
+        >
+          Aucune entrée ne correspond aux filtres.
+        </div>
+      )
+    ) : (
+      <div>
+        {groups.map(group => (
+          <div key={group.date} style={{ marginBottom: 18 }}>
+            <div
+              className="text-xs font-semibold uppercase tracking-wider px-1 mb-2"
+              style={{ color: 'var(--muted-fg)', letterSpacing: '0.04em' }}
+            >
+              {group.label}
+            </div>
+            {desktop ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {group.entries.map(entry => (
+                  <LedgerRow key={entry.id} entry={entry} catMap={catMap} isLast card onClick={() => handleEntryClick(entry)} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+                {group.entries.map((entry, i) => (
+                  <LedgerRow key={entry.id} entry={entry} catMap={catMap} isLast={i === group.entries.length - 1} onClick={() => handleEntryClick(entry)} />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        {hasMore && (
+          <button
+            onClick={() => setVisible(v => v + PAGE_SIZE)}
+            className="mb-4 py-3 rounded-2xl border text-sm font-semibold w-full"
+            style={{ borderColor: 'var(--border)', color: 'var(--primary)', background: 'var(--card)' }}
+          >
+            Afficher {Math.min(PAGE_SIZE, filtered.length - visible)} de plus
+          </button>
+        )}
+      </div>
+    )
+  )
+
+  const filterPanel = filterPanelOpen && (
+    <FilterPanel
+      filters={filters}
+      years={years}
+      onChange={setFilters}
+      onClose={() => setFilterPanelOpen(false)}
+      anchorEl={filterBtnRef.current}
+    />
+  )
+
+  // Desktop layout: title row + 2-col grid
+  if (isDesktop) {
+    return (
+      <>
+        <div style={{ padding: '30px 28px 60px', maxWidth: 1200, margin: '0 auto' }}>
+          {/* Title row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 24 }}>
+            <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--fg)', flexShrink: 0, margin: 0 }}>
+              Relevé
+            </h1>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {filterBar}
+            </div>
+          </div>
+
+          {/* 2-col grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 300px', gap: 24, alignItems: 'start' }}>
+            {/* Left: transactions */}
+            <div>
+              {transactionList(true)}
+            </div>
+            {/* Right: sticky balance card */}
+            <div style={{ position: 'sticky', top: 82 }}>
+              <BalanceCard balance={balance} />
+            </div>
+          </div>
+        </div>
+
+        {filterPanel}
+        {sheets}
+      </>
+    )
+  }
+
+  // Mobile layout
   return (
     <div className="flex flex-col min-h-0">
       {/* Balance header */}
@@ -130,8 +283,8 @@ export function RelevePage() {
               <div className="text-base font-bold" style={{ color: 'var(--fg)' }}>À jour !</div>
             ) : (
               <div className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>
-                <span style={{ color: 'var(--danger)' }}>{debtor}</span> doit{' '}
-                <span style={{ fontFamily: "'Geist Mono', monospace" }}>{formatCAD(abs)}</span> à {creditor}
+                <span style={{ color: 'var(--danger)' }}>{balance > 0 ? 'Béa' : 'Phil'}</span> doit{' '}
+                <span style={{ fontFamily: "'Geist Mono', monospace" }}>{formatCAD(Math.abs(balance))}</span> à {balance > 0 ? 'Phil' : 'Béa'}
               </div>
             )}
           </div>
@@ -143,110 +296,51 @@ export function RelevePage() {
         {!balanceCollapsed && Math.round(balance * 100) !== 0 && (
           <div className="px-4 pb-3 pt-0">
             <p className="text-xs" style={{ color: 'var(--muted-fg)' }}>
-              {debtor} doit rembourser{' '}
-              <span style={{ fontFamily: "'Geist Mono', monospace", fontWeight: 600, color: 'var(--fg)' }}>{formatCAD(abs)}</span>{' '}
-              à {creditor} pour l'année en cours.
+              {balance > 0 ? 'Béa' : 'Phil'} doit rembourser{' '}
+              <span style={{ fontFamily: "'Geist Mono', monospace", fontWeight: 600, color: 'var(--fg)' }}>{formatCAD(Math.abs(balance))}</span>{' '}
+              à {balance > 0 ? 'Phil' : 'Béa'} pour l'année en cours.
             </p>
           </div>
         )}
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-center gap-2 px-4 py-3">
-        <button
-          ref={filterBtnRef}
-          onClick={() => setFilterPanelOpen(v => !v)}
-          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border"
-          style={{
-            background: filterPanelOpen ? 'var(--primary-soft)' : 'var(--card)',
-            borderColor: filterPanelOpen || active ? 'var(--primary)' : 'var(--border)',
-            color: filterPanelOpen || active ? 'var(--primary)' : 'var(--fg)',
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 5h16M7 12h10M10 19h4"/>
-          </svg>
-          Filtrer
-        </button>
-        {/* Active filter pills */}
-        <div className="flex items-center gap-1.5 flex-1 overflow-x-auto min-w-0">
-          <ActiveFilterPills filters={filters} onChange={setFilters} />
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={doExport}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border"
-            style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--fg)' }}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 3v12M8 11l4 4 4-4M5 21h14"/>
-            </svg>
-            Exporter
-          </button>
-          <span className="text-xs" style={{ color: 'var(--muted-fg)' }}>
-            {filtered.length} entrée{filtered.length !== 1 ? 's' : ''}
-          </span>
-        </div>
+      <div className="px-4 py-3">
+        {filterBar}
       </div>
 
       {/* List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16"><Spinner /></div>
-      ) : filtered.length === 0 ? (
-        ledger.length === 0 ? <EmptyState /> : (
-          <div className="mx-4 rounded-2xl border p-8 text-center text-sm" style={{ borderColor: 'var(--border)', borderStyle: 'dashed', color: 'var(--muted-fg)' }}>
-            Aucune entrée ne correspond aux filtres.
-          </div>
-        )
-      ) : (
-        <div className="flex flex-col mx-4">
-          {groups.map(group => (
-            <div key={group.date} className="mb-4">
-              <div className="text-xs font-semibold uppercase tracking-wider px-1 mb-2" style={{ color: 'var(--muted-fg)' }}>
-                {group.label}
-              </div>
-              <div className="rounded-2xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-                {group.entries.map((entry, i) => (
-                  <LedgerRow key={entry.id} entry={entry} catMap={catMap} isLast={i === group.entries.length - 1} onClick={() => handleEntryClick(entry)} />
-                ))}
-              </div>
-            </div>
-          ))}
-          {hasMore && (
-            <button
-              onClick={() => setVisible(v => v + PAGE_SIZE)}
-              className="mb-4 py-3 rounded-2xl border text-sm font-semibold"
-              style={{ borderColor: 'var(--border)', color: 'var(--primary)', background: 'var(--card)' }}
-            >
-              Afficher {Math.min(PAGE_SIZE, filtered.length - visible)} de plus
-            </button>
-          )}
-        </div>
-      )}
+      <div className="flex flex-col mx-4">
+        {transactionList(false)}
+      </div>
 
-      {/* Filter panel */}
-      {filterPanelOpen && (
-        <FilterPanel
-          filters={filters}
-          years={years}
-          onChange={setFilters}
-          onClose={() => setFilterPanelOpen(false)}
-          anchorEl={filterBtnRef.current}
-        />
-      )}
+      {filterPanel}
+      {sheets}
+    </div>
+  )
+}
 
-      <ExpenseSheet
-        open={sheetOpen}
-        onClose={() => { setSheetOpen(false); setEditExpense(undefined) }}
-        expense={editExpense}
-        onSaved={reload}
-      />
-      <RecurringSheet
-        open={recurringSheetOpen}
-        onClose={() => { setRecurringSheetOpen(false); setEditRecurring(undefined) }}
-        recurring={editRecurring}
-        onSaved={reload}
-      />
+// ── Balance card (desktop right column) ──────────────────────────────────────
+
+function BalanceCard({ balance }: { balance: number }) {
+  const abs = Math.abs(balance)
+  const debtor = balance > 0 ? 'Béa' : 'Phil'
+  const creditor = balance > 0 ? 'Phil' : 'Béa'
+  const isEven = Math.round(balance * 100) === 0
+
+  return (
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: 22 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted-fg)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
+        Solde {new Date().getFullYear()}
+      </div>
+      <div style={{ fontSize: 38, fontWeight: 700, color: isEven ? 'var(--fg)' : 'var(--primary)', fontFamily: "'Geist Mono', monospace", letterSpacing: '-0.02em', lineHeight: 1.1, marginBottom: isEven ? 0 : 10 }}>
+        {isEven ? 'À jour !' : formatCAD(abs)}
+      </div>
+      {!isEven && (
+        <p style={{ fontSize: 13, color: 'var(--muted-fg)', margin: 0 }}>
+          <span style={{ color: 'var(--danger)', fontWeight: 600 }}>{debtor}</span> doit rembourser {creditor}
+        </p>
+      )}
     </div>
   )
 }
@@ -357,7 +451,6 @@ function FilterPanel({ filters, years, onChange, onClose, anchorEl }: {
     </div>
   )
 
-  // Desktop: headerless popover anchored to the filter button
   if (anchorRect) {
     return (
       <>
@@ -378,7 +471,6 @@ function FilterPanel({ filters, years, onChange, onClose, anchorEl }: {
     )
   }
 
-  // Mobile: bottom sheet, close via handle or backdrop
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose} />
@@ -416,8 +508,8 @@ function PillOption({ label, active, onClick }: { label: string; active: boolean
 
 // ── Ledger row ────────────────────────────────────────────────────────────────
 
-function LedgerRow({ entry, catMap, isLast, onClick }: {
-  entry: LedgerEntry; catMap: Record<string, CategoryRow>; isLast: boolean; onClick: () => void
+function LedgerRow({ entry, catMap, isLast, onClick, card = false }: {
+  entry: LedgerEntry; catMap: Record<string, CategoryRow>; isLast: boolean; onClick: () => void; card?: boolean
 }) {
   const cat = entry.categoryId ? catMap[entry.categoryId] : null
   const iconId = cat?.icon ?? (entry.kind === 'remb' ? 'refund' : 'receipt')
@@ -428,7 +520,10 @@ function LedgerRow({ entry, catMap, isLast, onClick }: {
     <div
       onClick={isClickable ? onClick : undefined}
       className="flex items-center gap-4 px-4 py-3"
-      style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)', cursor: isClickable ? 'pointer' : 'default' }}
+      style={card
+        ? { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, cursor: isClickable ? 'pointer' : 'default' }
+        : { borderBottom: isLast ? 'none' : '1px solid var(--border)', cursor: isClickable ? 'pointer' : 'default' }
+      }
     >
       {/* Leading icon */}
       <div

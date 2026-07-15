@@ -310,7 +310,7 @@ export function AppShell() {
             <div className="relative">
               <button
                 onClick={() => setPlusMenuOpen(v => !v)}
-                className="flex items-center gap-2.5 w-full text-left"
+                className="flex items-center justify-center gap-2.5 w-full"
                 style={{
                   padding: 12,
                   borderRadius: 11,

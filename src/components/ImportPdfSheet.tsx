@@ -68,8 +68,8 @@ async function extractPdfLines(file: File): Promise<{ lines: TextLine[]; fullTex
 
 // ── Parsing helpers ────────────────────────────────────────────────────────
 
-function inferYear(fullText: string): number {
-  const matches = [...fullText.matchAll(/20\d{2}/g)].map(m => parseInt(m[0]))
+function inferYear(text: string): number {
+  const matches = [...text.matchAll(/20\d{2}/g)].map(m => parseInt(m[0]))
   if (!matches.length) return new Date().getFullYear()
   const counts: Record<number, number> = {}
   for (const y of matches) counts[y] = (counts[y] || 0) + 1
@@ -152,7 +152,7 @@ function tryParseAmount(cells: TextLine, startIdx: number): { amount: number; id
 
 const SKIP_DESC = /solde|total|balance|report|brought forward|page|no\. de compte|numéro|relevé/i
 
-function parseTransactions(
+function parsePdfTransactions(
   lines: TextLine[],
   fullText: string,
   existing: ExistingExpense[],
@@ -197,6 +197,115 @@ function parseTransactions(
   return results
 }
 
+// ── Text paste parser (Desjardins web banking) ─────────────────────────────
+// Targets "Lien" column summary lines: "12 Juillet Dollarama 6,71 $"
+
+const FR_MONTHS_FULL: Record<string, number> = {
+  'janvier': 1, 'février': 2, 'mars': 3, 'avril': 4, 'mai': 5, 'juin': 6,
+  'juillet': 7, 'août': 8, 'septembre': 9, 'octobre': 10, 'novembre': 11, 'décembre': 12,
+}
+
+// day · full-FR-month · description · optional-sign · amount (with optional thousands space) · $
+const LIEN_RE = /^(\d{1,2})\s+([A-Za-zÀ-ÿ]+)\s+(.*?)\s+(\+?[\d]+(?:\s\d{3})?,\d{2})\s*\$\s*$/
+
+function parseDesjardinsText(
+  raw: string,
+  existing: ExistingExpense[],
+  defaultPayer: Person,
+): ParsedRow[] {
+  const year = inferYear(raw)
+  const results: ParsedRow[] = []
+
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim()
+    const m = trimmed.match(LIEN_RE)
+    if (!m) continue
+
+    const day = parseInt(m[1])
+    const month = FR_MONTHS_FULL[m[2].toLowerCase()]
+    if (!month) continue
+
+    const amountStr = m[4]
+    if (amountStr.startsWith('+')) continue // credit / payment
+
+    const description = m[3].replace(/\.\s*$/, '').trim()
+    if (!description || description.length < 2) continue
+    if (/^total$/i.test(description)) continue
+
+    const amount = parseFloat(amountStr.replace(/\s/g, '').replace(',', '.'))
+    if (isNaN(amount) || amount <= 0 || amount >= 100_000) continue
+
+    const date = buildDate(year, month, day)
+    const isDuplicate = existing.some(e =>
+      e.date === date &&
+      Math.abs(e.amount - amount) < 0.005 &&
+      e.description.toLowerCase().includes(description.toLowerCase().slice(0, 8)),
+    )
+
+    results.push({
+      key: results.length,
+      date,
+      description,
+      amount,
+      selected: !isDuplicate,
+      categoryId: null,
+      payer: defaultPayer,
+      split: 'half',
+      isDuplicate,
+    })
+  }
+
+  return results
+}
+
+// ── Image parser via Supabase Edge Function ────────────────────────────────
+
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve((reader.result as string).split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+async function parseImageViaEdge(
+  file: File,
+  existing: ExistingExpense[],
+  defaultPayer: Person,
+): Promise<ParsedRow[]> {
+  const year = new Date().getFullYear()
+  const base64 = await fileToBase64(file)
+  const mimeType = file.type || 'image/png'
+
+  const { data, error } = await supabase.functions.invoke('parse-statement', {
+    body: { image: base64, mimeType, year },
+  })
+
+  if (error) throw new Error(error.message)
+  if (data?.error) throw new Error(data.error)
+
+  const items = data.transactions as { date: string; description: string; amount: number }[]
+  return items.map((item, idx) => {
+    const isDuplicate = existing.some(e =>
+      e.date === item.date &&
+      Math.abs(e.amount - item.amount) < 0.005 &&
+      e.description.toLowerCase().includes(item.description.toLowerCase().slice(0, 8)),
+    )
+    return {
+      key: idx,
+      date: item.date,
+      description: item.description,
+      amount: item.amount,
+      selected: !isDuplicate,
+      categoryId: null,
+      payer: defaultPayer,
+      split: 'half' as Split,
+      isDuplicate,
+    }
+  })
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 interface ImportPdfSheetProps {
@@ -210,6 +319,8 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
   const { household } = useHousehold()
 
   const [step, setStep] = useState<'pick' | 'review'>('pick')
+  const [inputMode, setInputMode] = useState<'text' | 'file'>('text')
+  const [textInput, setTextInput] = useState('')
   const [parsing, setParsing] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
   const [rows, setRows] = useState<ParsedRow[]>([])
@@ -226,29 +337,73 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
       setParseError(null)
       setParsing(false)
       setDragOver(false)
+      setTextInput('')
     }
   }, [open])
 
+  async function fetchExisting(): Promise<ExistingExpense[]> {
+    if (!household) return []
+    const { data } = await supabase
+      .from('expenses')
+      .select('date, amount, description')
+      .eq('household_id', household.id)
+    return (data ?? []) as ExistingExpense[]
+  }
+
+  async function handleText() {
+    if (!textInput.trim()) return
+    setParsing(true)
+    setParseError(null)
+    try {
+      const existing = await fetchExisting()
+      const parsed = parseDesjardinsText(textInput, existing, defaultPayer)
+      if (parsed.length === 0) {
+        setParseError("Aucune transaction détectée. Vérifie que le texte est bien copié depuis ton relevé en ligne.")
+        return
+      }
+      setRows(parsed)
+      setStep('review')
+    } catch (e) {
+      setParseError(`Erreur : ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setParsing(false)
+    }
+  }
+
   async function handleFile(file: File) {
     if (file.type.startsWith('image/')) {
-      setParseError("L'extraction depuis les images n'est pas encore disponible. Exportez votre relevé en PDF.")
+      setParsing(true)
+      setParseError(null)
+      try {
+        const existing = await fetchExisting()
+        const parsed = await parseImageViaEdge(file, existing, defaultPayer)
+        if (parsed.length === 0) {
+          setParseError("Aucune transaction détectée dans la capture.")
+          return
+        }
+        setRows(parsed)
+        setStep('review')
+      } catch (e) {
+        setParseError(`Erreur : ${e instanceof Error ? e.message : String(e)}`)
+      } finally {
+        setParsing(false)
+      }
       return
     }
+
     if (!file.type.includes('pdf') && !file.name.endsWith('.pdf')) {
-      setParseError('Veuillez sélectionner un fichier PDF.')
+      setParseError('Sélectionne une image ou un fichier PDF.')
       return
     }
+
     setParsing(true)
     setParseError(null)
     try {
       const { lines, fullText } = await extractPdfLines(file)
-      const { data: existing } = household
-        ? await supabase.from('expenses').select('date, amount, description').eq('household_id', household.id)
-        : { data: [] }
-      const parsed = parseTransactions(lines, fullText, (existing ?? []) as ExistingExpense[], defaultPayer)
+      const existing = await fetchExisting()
+      const parsed = parsePdfTransactions(lines, fullText, existing, defaultPayer)
       if (parsed.length === 0) {
         setParseError("Aucune transaction détectée. Ce format n'est peut-être pas pris en charge.")
-        setParsing(false)
         return
       }
       setRows(parsed)
@@ -286,7 +441,7 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
   if (!open) return null
 
   const stepBars = [
-    { label: 'Capture', active: true },
+    { label: 'Source', active: true },
     { label: 'Transactions', active: step === 'review' },
   ]
 
@@ -298,7 +453,7 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose} />
 
       <div
-        className="relative w-full sm:max-w-[460px] flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
+        className="relative w-full sm:max-w-[480px] flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
         style={{ background: 'var(--appbg)', maxHeight: 'calc(100svh - 28px)' }}
       >
         {/* Mobile handle */}
@@ -306,7 +461,7 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
         </div>
 
-        {/* Header: title + X */}
+        {/* Header */}
         <div className="flex items-center justify-between flex-shrink-0" style={{ padding: '16px 18px 10px' }}>
           <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg)', margin: 0 }}>Importer un relevé</h2>
           <button
@@ -325,7 +480,7 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
           {stepBars.map(s => (
             <div key={s.label} style={{ flex: 1 }}>
               <div style={{ height: 4, borderRadius: 999, background: s.active ? 'var(--primary)' : 'var(--muted)', transition: 'background 0.2s' }} />
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: s.active ? 'var(--fg)' : 'var(--muted-fg)', marginTop: 6, transition: 'color 0.2s' }}>{s.label}</div>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: s.active ? 'var(--fg)' : 'var(--muted-fg)', marginTop: 6 }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -334,71 +489,146 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 18px 14px' }}>
           {step === 'pick' ? (
             <>
-              {/* Drop zone */}
-              <div
-                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={e => {
-                  e.preventDefault()
-                  setDragOver(false)
-                  const f = e.dataTransfer.files[0]
-                  if (f) handleFile(f)
-                }}
-                style={{
-                  border: `1.5px dashed ${dragOver ? 'var(--primary)' : 'var(--border)'}`,
-                  borderRadius: 16,
-                  padding: '30px 20px',
-                  textAlign: 'center',
-                  background: dragOver ? 'var(--primary-soft)' : 'var(--card)',
-                  transition: 'background 0.15s, border-color 0.15s',
-                }}
-              >
-                {parsing ? (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-                      <div className="animate-spin" style={{ width: 40, height: 40, borderRadius: '50%', border: '2.5px solid var(--primary)', borderTopColor: 'transparent' }} />
-                    </div>
-                    <div style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--fg)' }}>Lecture en cours…</div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ width: 46, height: 46, borderRadius: 13, background: 'var(--primary-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 13px', color: 'var(--primary)' }}>
-                      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="3"/>
-                        <path d="M3 15l5-5 4 4 3-3 6 6"/>
-                        <circle cx="8.5" cy="8.5" r="1.5"/>
-                      </svg>
-                    </div>
-                    <div style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--fg)' }}>Dépose une capture d'écran</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--muted-fg)', marginTop: 4, lineHeight: 1.5 }}>Glisse-dépose ici, ou choisis un fichier.</div>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      style={{ marginTop: 15, display: 'inline-block', background: 'var(--primary)', color: 'var(--primary-fg)', borderRadius: 11, padding: '11px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none' }}
-                    >
-                      Choisir une capture
-                    </button>
-                  </>
-                )}
+              {/* Mode tabs */}
+              <div style={{ display: 'flex', gap: 4, padding: 3, background: 'var(--muted)', borderRadius: 12, marginBottom: 16 }}>
+                {(['text', 'file'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => { setInputMode(mode); setParseError(null) }}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      borderRadius: 9,
+                      fontSize: 13.5,
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: inputMode === mode ? 'var(--card)' : 'transparent',
+                      color: inputMode === mode ? 'var(--fg)' : 'var(--muted-fg)',
+                      boxShadow: inputMode === mode ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'background 0.15s, color 0.15s, box-shadow 0.15s',
+                    }}
+                  >
+                    {mode === 'text' ? 'Texte' : 'Capture'}
+                  </button>
+                ))}
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,application/pdf,image/*"
-                className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
-              />
+
+              {inputMode === 'text' ? (
+                <>
+                  <textarea
+                    value={textInput}
+                    onChange={e => setTextInput(e.target.value)}
+                    placeholder={"Copie-colle ici le texte de ton relevé en ligne…\n\nEx: 12 Juillet Dollarama 6,71 $"}
+                    style={{
+                      width: '100%',
+                      minHeight: 200,
+                      padding: '12px 13px',
+                      background: 'var(--card)',
+                      border: '1.5px solid var(--border)',
+                      borderRadius: 13,
+                      fontSize: 12.5,
+                      color: 'var(--fg)',
+                      resize: 'vertical',
+                      fontFamily: 'inherit',
+                      lineHeight: 1.55,
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <button
+                    onClick={handleText}
+                    disabled={!textInput.trim() || parsing}
+                    style={{
+                      marginTop: 10,
+                      width: '100%',
+                      background: !textInput.trim() || parsing ? 'var(--muted)' : 'var(--primary)',
+                      color: !textInput.trim() || parsing ? 'var(--muted-fg)' : 'var(--primary-fg)',
+                      borderRadius: 11,
+                      padding: '12px 20px',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: !textInput.trim() || parsing ? 'not-allowed' : 'pointer',
+                      border: 'none',
+                      transition: 'background 0.15s',
+                    }}
+                  >
+                    {parsing ? 'Analyse en cours…' : 'Analyser le texte'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Drop zone */}
+                  <div
+                    onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={e => {
+                      e.preventDefault()
+                      setDragOver(false)
+                      const f = e.dataTransfer.files[0]
+                      if (f) handleFile(f)
+                    }}
+                    style={{
+                      border: `1.5px dashed ${dragOver ? 'var(--primary)' : 'var(--border)'}`,
+                      borderRadius: 16,
+                      padding: '30px 20px',
+                      textAlign: 'center',
+                      background: dragOver ? 'var(--primary-soft)' : 'var(--card)',
+                      transition: 'background 0.15s, border-color 0.15s',
+                    }}
+                  >
+                    {parsing ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+                          <div className="animate-spin" style={{ width: 38, height: 38, borderRadius: '50%', border: '2.5px solid var(--primary)', borderTopColor: 'transparent' }} />
+                        </div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)' }}>Analyse en cours…</div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ width: 46, height: 46, borderRadius: 13, background: 'var(--primary-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 13px', color: 'var(--primary)' }}>
+                          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="3"/>
+                            <path d="M3 15l5-5 4 4 3-3 6 6"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                          </svg>
+                        </div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)' }}>Dépose une capture d'écran</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--muted-fg)', marginTop: 4, lineHeight: 1.5 }}>Glisse-dépose ici, ou choisis un fichier.</div>
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          style={{ marginTop: 15, display: 'inline-block', background: 'var(--primary)', color: 'var(--primary-fg)', borderRadius: 11, padding: '11px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none' }}
+                        >
+                          Choisir une capture
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,application/pdf,image/*"
+                    className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+                  />
+                </>
+              )}
 
               {parseError && (
                 <p style={{ marginTop: 12, fontSize: 13, fontWeight: 500, color: 'var(--danger)' }}>{parseError}</p>
               )}
 
               {/* Info box */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 13, padding: '12px 13px', background: 'var(--muted)', borderRadius: 12 }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--muted-fg)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 13, padding: '12px 13px', background: 'var(--muted)', borderRadius: 12 }}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--muted-fg)', marginTop: 1 }}>
                   <circle cx="12" cy="12" r="10"/>
                   <path d="M12 16v-4M12 8h.01"/>
                 </svg>
-                <div style={{ fontSize: 12, color: 'var(--muted-fg)', lineHeight: 1.45 }}>Les montants déjà importés sont ignorés automatiquement.</div>
+                <div style={{ fontSize: 12, color: 'var(--muted-fg)', lineHeight: 1.5 }}>
+                  {inputMode === 'text'
+                    ? 'Sélectionne tout le texte de ton relevé en ligne et colle-le ici. Les doublons et paiements sont filtrés automatiquement.'
+                    : 'Les montants déjà importés sont ignorés automatiquement. L\'analyse des captures utilise l\'IA.'}
+                </div>
               </div>
             </>
           ) : (
@@ -488,7 +718,6 @@ function ReviewRow({
         transition: 'opacity 0.15s',
       }}
     >
-      {/* Checkbox */}
       <div style={{
         width: 20,
         height: 20,
@@ -508,7 +737,6 @@ function ReviewRow({
         )}
       </div>
 
-      {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {row.description}
@@ -518,7 +746,6 @@ function ReviewRow({
         </div>
       </div>
 
-      {/* Amount */}
       <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 14, fontWeight: 600, color: 'var(--fg)', flexShrink: 0 }}>
         {formatCAD(row.amount)}
       </div>

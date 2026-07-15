@@ -17,6 +17,7 @@ interface ExpenseSheetProps {
 }
 
 const TODAY = new Date().toISOString().slice(0, 10)
+const DRAFT_KEY = 'expense_draft'
 
 export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetProps) {
   const { profile } = useAuth()
@@ -69,6 +70,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
   // Populate when opening
   useEffect(() => {
     if (open && expense) {
+      sessionStorage.removeItem(DRAFT_KEY)
       setDescription(expense.description)
       setCategoryId(expense.category_id ?? null)
       setDate(expense.date)
@@ -90,26 +92,58 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
         setGasPrice('')
       }
     } else if (open) {
-      setDescription('')
-      setCategoryId(null)
-      setDate(TODAY)
-      setAmountStr('')
-      setPayer(profile?.person ?? 'bea')
-      setSplit('half')
+      const saved = sessionStorage.getItem(DRAFT_KEY)
+      if (saved) {
+        try {
+          const d = JSON.parse(saved)
+          setDescription(d.description ?? '')
+          setCategoryId(d.categoryId ?? null)
+          setDate(d.date ?? TODAY)
+          setAmountStr(d.amountStr ?? '')
+          setPayer(d.payer ?? (profile?.person ?? 'bea'))
+          setSplit(d.split ?? 'half')
+          setGasVehicleId(d.gasVehicleId ?? '')
+          setGasTripId(d.gasTripId ?? null)
+          setGasKm(d.gasKm ?? '')
+          setGasToll(d.gasToll ?? '0')
+          setGasPrice(d.gasPrice ?? '')
+        } catch { /* brouillon corrompu, ignorer */ }
+      } else {
+        setDescription('')
+        setCategoryId(null)
+        setDate(TODAY)
+        setAmountStr('')
+        setPayer(profile?.person ?? 'bea')
+        setSplit('half')
+        setGasVehicleId('')
+        setGasTripId(null)
+        setGasKm('')
+        setGasToll('0')
+        setGasPrice('')
+      }
       setConfirmDelete(false)
-      setGasVehicleId('')
-      setGasTripId(null)
-      setGasKm('')
-      setGasToll('0')
-      setGasPrice('')
     }
     setError(null)
     setSaving(false)
   }, [open, expense?.id])
 
+  // Sauvegarde automatique du brouillon (nouvelle dépense uniquement)
+  useEffect(() => {
+    if (!open || expense) return
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+      description, categoryId, date, amountStr, payer, split,
+      gasVehicleId, gasTripId, gasKm, gasToll, gasPrice,
+    }))
+  }, [open, expense, description, categoryId, date, amountStr, payer, split, gasVehicleId, gasTripId, gasKm, gasToll, gasPrice])
+
   useEffect(() => {
     if (open) setTimeout(() => descRef.current?.focus(), 100)
   }, [open])
+
+  function handleClose() {
+    sessionStorage.removeItem(DRAFT_KEY)
+    onClose()
+  }
 
   function parseAmount(): number | null {
     const n = parseFloat(amountStr.replace(',', '.'))
@@ -149,6 +183,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
       if (err) { setError(err.message); return }
     }
     onSaved?.()
+    sessionStorage.removeItem(DRAFT_KEY)
     onClose()
   }
 
@@ -158,6 +193,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
     await supabase.from('expenses').delete().eq('id', expense.id)
     setSaving(false)
     onSaved?.()
+    sessionStorage.removeItem(DRAFT_KEY)
     onClose()
   }
 
@@ -168,9 +204,9 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      onClick={e => { if (e.target === e.currentTarget) handleClose() }}
     >
-      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose} />
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={handleClose} />
 
       <div
         className="relative w-full sm:max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
@@ -183,7 +219,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
 
         {/* Header */}
         <div className="flex items-center px-5 sm:px-6 pt-2 sm:pt-5 pb-3 sm:pb-4 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
-          <button className="sm:hidden text-sm font-medium" style={{ color: 'var(--primary)', width: 64 }} onClick={onClose}>
+          <button className="sm:hidden text-sm font-medium" style={{ color: 'var(--primary)', width: 64 }} onClick={handleClose}>
             Annuler
           </button>
           <h2 className="flex-1 text-center sm:text-left text-base font-semibold" style={{ color: 'var(--fg)' }}>
@@ -192,7 +228,7 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
           <button
             className="hidden sm:flex w-8 h-8 sm:w-[30px] sm:h-[30px] rounded-xl items-center justify-center text-base font-medium"
             style={{ background: 'var(--muted)', color: 'var(--muted-fg)' }}
-            onClick={onClose}
+            onClick={handleClose}
           >
             ✕
           </button>

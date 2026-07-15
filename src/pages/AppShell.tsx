@@ -59,7 +59,7 @@ export function AppShell() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const [addSheetOpen, setAddSheetOpen] = useState(false)
+  const [addSheetOpen, setAddSheetOpen] = useState(() => !!sessionStorage.getItem('expense_draft'))
   const [addRecurringOpen, setAddRecurringOpen] = useState(false)
   const [importPdfOpen, setImportPdfOpen] = useState(false)
   const [plusMenuOpen, setPlusMenuOpen] = useState(false)

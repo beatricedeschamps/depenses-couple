@@ -3,6 +3,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHousehold } from '@/contexts/HouseholdContext'
+import { useCategories } from '@/hooks/useCategories'
 import { formatCAD } from '@/lib/utils'
 import type { Person, Split } from '@/lib/database.types'
 
@@ -318,6 +319,57 @@ async function parseImageViaEdge(
   })
 }
 
+// ── Auto-catégorisation par mots-clés ──────────────────────────────────────
+// Chaque règle : [mots-clés, icon de la catégorie cible]
+
+const CAT_RULES: [string[], string][] = [
+  // Épicerie & courses courantes
+  [['metro', 'iga', 'maxi', 'provigo', 'loblaws', 'walmart', 'costco', 'dollarama', 'dollar', 'marché', 'épicerie'], 'cart'],
+  // Restaurants & cafés
+  [['restaurant', 'resto', 'café', 'cafe', 'brasserie', 'bistro', 'taverne', 'pizza', 'sushi', 'burger', 'mcdonald', 'subway', 'tim horton', 'starbucks', 'second cup', 'goza', 'reggiano', 'boulangerie'], 'coffee'],
+  // Streaming & abonnements numériques
+  [['netflix', 'disney', 'prime video', 'crave', 'tubi', 'apple tv', 'dazn', 'spotify', 'apple music', 'tidal', 'youtube premium'], 'music'],
+  // Logiciels & tech
+  [['anthropic', 'claude sub', 'openai', 'chatgpt', 'github', 'microsoft', 'adobe', 'google one', 'dropbox', 'notion', 'slack', 'cursor', '1password'], 'wrench'],
+  // Téléphone & télécoms
+  [['fizz', 'vidéotron', 'videotron', 'bell', 'rogers', 'telus', 'koodo', 'public mobile', 'fido', 'chatr', 'illico', 'helix'], 'bolt'],
+  // Électricité, gaz & énergie
+  [['hydro', 'hydro-québec', 'énergir', 'gaz métro', 'éngie', 'engie'], 'bolt'],
+  // Transport en commun & mobilité
+  [['opus', 'stm', 'exo', 'bixi', 'chrono-recharge', 'chrono recharge', 'réseau express', 'via rail', 'amtrak', 'uber', 'lyft', 'taxi'], 'car'],
+  // Voyage & hôtels
+  [['air canada', 'westjet', 'air transat', 'hôtel', 'hotel', 'airbnb', 'booking', 'expedia', 'trivago', 'aéroport', 'airport'], 'plane'],
+  // Santé & pharmacie
+  [['pharmaprix', 'jean coutu', 'brunet', 'uniprix', 'shoppers', 'pharmacie', 'médecin', 'dentiste', 'optique', 'clinique', 'physio', 'massothérapie'], 'heart'],
+  // Sport & plein air
+  [['sail', 'sport expert', 'décathlon', 'atmosphere', 'altitude', 'gym', 'crossfit', 'yoga', 'swimming', 'natation'], 'dumbbell'],
+  // Culture & spectacles
+  [['place des arts', 'cinéma', 'cinema', 'théâtre', 'festival', 'musée', 'concert', 'spectacle', 'billetterie', 'evenko', 'ticketmaster'], 'ticket'],
+  // Éducation & livres
+  [['librairie', 'renaud-bray', 'archambault', 'udemy', 'coursera', 'école', 'université', 'kindle'], 'book'],
+  // Maison & rénovation
+  [['ikea', 'structube', 'homesense', 'rona', 'canadian tire', 'home depot', 'pascal', 'réno-dépôt', 'réno dépôt'], 'home'],
+  // Assurance
+  [['assurance', 'intact', 'la capitale', 'desjardins assurances'], 'shield'],
+  // Animaux
+  [['vétérinaire', 'veto', 'animalerie', 'petsmart', 'global pet', 'mondou'], 'paw'],
+  // Vêtements & shopping
+  [['zara', 'h&m', 'simons', 'aritzia', 'winners', 'reitmans', 'ardène', 'aldo', 'le château', 'eva b', 'friperie', 'renaissance', 'seconde main'], 'gift'],
+]
+
+function autoAssignCategory(
+  description: string,
+  categories: { id: string; icon: string }[],
+): string | null {
+  const desc = description.toLowerCase()
+  for (const [keywords, icon] of CAT_RULES) {
+    if (keywords.some(k => desc.includes(k))) {
+      return categories.find(c => c.icon === icon)?.id ?? null
+    }
+  }
+  return null
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 interface ImportPdfSheetProps {
@@ -329,6 +381,7 @@ interface ImportPdfSheetProps {
 export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) {
   const { profile } = useAuth()
   const { household } = useHousehold()
+  const { categories } = useCategories()
 
   const [step, setStep] = useState<'pick' | 'review'>('pick')
   const [inputMode, setInputMode] = useState<'text' | 'file'>('text')
@@ -369,6 +422,7 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
     try {
       const existing = await fetchExisting()
       const parsed = parseDesjardinsText(textInput, existing, defaultPayer)
+        .map(r => ({ ...r, categoryId: autoAssignCategory(r.description, categories) }))
       if (parsed.length === 0) {
         setParseError("Aucune transaction détectée. Vérifie que le texte est bien copié depuis ton relevé en ligne.")
         return
@@ -388,7 +442,8 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
       setParseError(null)
       try {
         const existing = await fetchExisting()
-        const parsed = await parseImageViaEdge(file, existing, defaultPayer)
+        const parsed = (await parseImageViaEdge(file, existing, defaultPayer))
+          .map(r => ({ ...r, categoryId: autoAssignCategory(r.description, categories) }))
         if (parsed.length === 0) {
           setParseError("Aucune transaction détectée dans la capture.")
           return
@@ -414,6 +469,7 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
       const { lines, fullText } = await extractPdfLines(file)
       const existing = await fetchExisting()
       const parsed = parsePdfTransactions(lines, fullText, existing, defaultPayer)
+        .map(r => ({ ...r, categoryId: autoAssignCategory(r.description, categories) }))
       if (parsed.length === 0) {
         setParseError("Aucune transaction détectée. Ce format n'est peut-être pas pris en charge.")
         return

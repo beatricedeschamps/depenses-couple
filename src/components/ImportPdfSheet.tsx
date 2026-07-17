@@ -406,6 +406,12 @@ function autoAssignCategory(
   return null
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 interface ImportPdfSheetProps {
@@ -420,7 +426,9 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
   const { categories } = useCategories()
 
   const [step, setStep] = useState<'pick' | 'review'>('pick')
-  const [inputMode, setInputMode] = useState<'text' | 'file'>('text')
+  const [inputMode, setInputMode] = useState<null | 'text' | 'file'>(null)
+  const [inputFile, setInputFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [textInput, setTextInput] = useState('')
   const [parsing, setParsing] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
@@ -439,8 +447,39 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
       setParsing(false)
       setDragOver(false)
       setTextInput('')
+      setInputMode(null)
+      setInputFile(null)
     }
   }, [open])
+
+  // Generate/revoke object URL for image preview
+  useEffect(() => {
+    if (!inputFile?.type.startsWith('image/')) { setPreviewUrl(null); return }
+    const url = URL.createObjectURL(inputFile)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [inputFile])
+
+  // Global paste handler when the zone is in empty state
+  useEffect(() => {
+    if (!open || step !== 'pick' || inputMode !== null) return
+    function onPaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.startsWith('image/')) {
+            const file = items[i].getAsFile()
+            if (file) { setInputFile(file); setInputMode('file') }
+            return
+          }
+        }
+      }
+      const text = e.clipboardData?.getData('text')
+      if (text?.trim()) { setTextInput(text); setInputMode('text') }
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [open, step, inputMode])
 
   async function fetchExisting(): Promise<ExistingExpense[]> {
     if (!household) return []
@@ -518,6 +557,11 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
     }
   }
 
+  async function handleAnalyze() {
+    if (inputMode === 'text') await handleText()
+    else if (inputMode === 'file' && inputFile) await handleFile(inputFile)
+  }
+
   const selectedRows = rows.filter(r => r.selected)
   const total = selectedRows.reduce((s, r) => s + r.amount, 0)
 
@@ -592,147 +636,170 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 18px 14px' }}>
           {step === 'pick' ? (
             <>
-              {/* Mode tabs */}
-              <div style={{ display: 'flex', gap: 4, padding: 3, background: 'var(--muted)', borderRadius: 12, marginBottom: 16 }}>
-                {(['text', 'file'] as const).map(mode => (
-                  <button
-                    key={mode}
-                    onClick={() => { setInputMode(mode); setParseError(null) }}
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      borderRadius: 9,
-                      fontSize: 13.5,
-                      fontWeight: 600,
-                      border: 'none',
-                      cursor: 'pointer',
-                      background: inputMode === mode ? 'var(--card)' : 'transparent',
-                      color: inputMode === mode ? 'var(--fg)' : 'var(--muted-fg)',
-                      boxShadow: inputMode === mode ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                      transition: 'background 0.15s, color 0.15s, box-shadow 0.15s',
-                    }}
-                  >
-                    {mode === 'text' ? 'Texte' : 'Capture'}
-                  </button>
-                ))}
+              {/* Unified input zone */}
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => {
+                  e.preventDefault()
+                  setDragOver(false)
+                  const f = e.dataTransfer.files[0]
+                  if (f) { setInputFile(f); setInputMode('file'); setParseError(null) }
+                }}
+                style={{
+                  border: inputMode
+                    ? '1.5px solid var(--primary)'
+                    : `1.5px dashed ${dragOver ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: 16,
+                  background: dragOver && !inputMode ? 'var(--primary-soft)' : 'var(--card)',
+                  transition: 'border-color 0.15s, background 0.15s',
+                  overflow: 'hidden',
+                }}
+              >
+                {/* ── État vide ── */}
+                {!inputMode && (
+                  <div style={{ padding: '32px 20px 24px', textAlign: 'center' }}>
+                    <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--primary-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: 'var(--primary)' }}>
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="3"/>
+                        <path d="M3 15l5-5 4 4 3-3 6 6"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <path d="M19 2v6M22 5h-6"/>
+                      </svg>
+                    </div>
+                    <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>
+                      Colle le texte de ton relevé
+                    </div>
+                    <div style={{ fontSize: 12.5, color: 'var(--muted-fg)', lineHeight: 1.5 }}>
+                      ou glisse-dépose une capture d'écran
+                    </div>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{ marginTop: 18, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 500, color: 'var(--muted-fg)', background: 'var(--muted)', border: 'none', borderRadius: 8, padding: '7px 12px', cursor: 'pointer' }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                      </svg>
+                      Choisir un fichier
+                    </button>
+                  </div>
+                )}
+
+                {/* ── État texte ── */}
+                {inputMode === 'text' && (
+                  <>
+                    <textarea
+                      value={textInput}
+                      onChange={e => setTextInput(e.target.value)}
+                      autoFocus
+                      style={{
+                        width: '100%',
+                        minHeight: 190,
+                        padding: '12px 13px',
+                        background: 'transparent',
+                        border: 'none',
+                        fontSize: 12.5,
+                        color: 'var(--fg)',
+                        resize: 'none',
+                        fontFamily: 'inherit',
+                        lineHeight: 1.55,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        display: 'block',
+                      }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 13px', borderTop: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--muted-fg)' }}>
+                        Texte détecté · {textInput.split('\n').filter(l => l.trim()).length} lignes
+                      </span>
+                      <button
+                        onClick={() => { setTextInput(''); setInputMode(null); setParseError(null) }}
+                        style={{ fontSize: 12, fontWeight: 600, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      >
+                        Effacer
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* ── État image/fichier ── */}
+                {inputMode === 'file' && inputFile && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
+                    <div style={{ width: 42, height: 42, borderRadius: 10, background: 'var(--primary-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'var(--primary)', overflow: 'hidden' }}>
+                      {previewUrl ? (
+                        <img src={previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                          <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {inputFile.name}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'var(--muted-fg)', marginTop: 2 }}>
+                        {formatFileSize(inputFile.size)}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => { setInputFile(null); setInputMode(null); setParseError(null) }}
+                      style={{ fontSize: 12, fontWeight: 600, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0 }}
+                    >
+                      Retirer
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {inputMode === 'text' ? (
-                <>
-                  <textarea
-                    value={textInput}
-                    onChange={e => setTextInput(e.target.value)}
-                    placeholder={"Copie-colle ici le texte de ton relevé en ligne…\n\nEx: 12 Juillet Dollarama 6,71 $"}
-                    style={{
-                      width: '100%',
-                      minHeight: 200,
-                      padding: '12px 13px',
-                      background: 'var(--card)',
-                      border: '1.5px solid var(--border)',
-                      borderRadius: 13,
-                      fontSize: 12.5,
-                      color: 'var(--fg)',
-                      resize: 'vertical',
-                      fontFamily: 'inherit',
-                      lineHeight: 1.55,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  <button
-                    onClick={handleText}
-                    disabled={!textInput.trim() || parsing}
-                    style={{
-                      marginTop: 10,
-                      width: '100%',
-                      background: !textInput.trim() || parsing ? 'var(--muted)' : 'var(--primary)',
-                      color: !textInput.trim() || parsing ? 'var(--muted-fg)' : 'var(--primary-fg)',
-                      borderRadius: 11,
-                      padding: '12px 20px',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: !textInput.trim() || parsing ? 'not-allowed' : 'pointer',
-                      border: 'none',
-                      transition: 'background 0.15s',
-                    }}
-                  >
-                    {parsing ? 'Analyse en cours…' : 'Analyser le texte'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {/* Drop zone */}
-                  <div
-                    onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={e => {
-                      e.preventDefault()
-                      setDragOver(false)
-                      const f = e.dataTransfer.files[0]
-                      if (f) handleFile(f)
-                    }}
-                    style={{
-                      border: `1.5px dashed ${dragOver ? 'var(--primary)' : 'var(--border)'}`,
-                      borderRadius: 16,
-                      padding: '30px 20px',
-                      textAlign: 'center',
-                      background: dragOver ? 'var(--primary-soft)' : 'var(--card)',
-                      transition: 'background 0.15s, border-color 0.15s',
-                    }}
-                  >
-                    {parsing ? (
-                      <>
-                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-                          <div className="animate-spin" style={{ width: 38, height: 38, borderRadius: '50%', border: '2.5px solid var(--primary)', borderTopColor: 'transparent' }} />
-                        </div>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)' }}>Analyse en cours…</div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ width: 46, height: 46, borderRadius: 13, background: 'var(--primary-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 13px', color: 'var(--primary)' }}>
-                          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="3"/>
-                            <path d="M3 15l5-5 4 4 3-3 6 6"/>
-                            <circle cx="8.5" cy="8.5" r="1.5"/>
-                          </svg>
-                        </div>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)' }}>Dépose une capture d'écran</div>
-                        <div style={{ fontSize: 12.5, color: 'var(--muted-fg)', marginTop: 4, lineHeight: 1.5 }}>Glisse-dépose ici, ou choisis un fichier.</div>
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          style={{ marginTop: 15, display: 'inline-block', background: 'var(--primary)', color: 'var(--primary-fg)', borderRadius: 11, padding: '11px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none' }}
-                        >
-                          Choisir une capture
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,application/pdf,image/*"
-                    className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
-                  />
-                </>
-              )}
+              {/* Action button */}
+              <button
+                onClick={handleAnalyze}
+                disabled={!inputMode || parsing}
+                style={{
+                  marginTop: 10,
+                  width: '100%',
+                  background: !inputMode || parsing ? 'var(--muted)' : 'var(--primary)',
+                  color: !inputMode || parsing ? 'var(--muted-fg)' : 'var(--primary-fg)',
+                  borderRadius: 11,
+                  padding: '12px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: !inputMode || parsing ? 'not-allowed' : 'pointer',
+                  border: 'none',
+                  transition: 'background 0.15s',
+                }}
+              >
+                {parsing ? 'Analyse en cours…' : 'Analyser'}
+              </button>
 
               {parseError && (
-                <p style={{ marginTop: 12, fontSize: 13, fontWeight: 500, color: 'var(--danger)' }}>{parseError}</p>
+                <p style={{ marginTop: 10, fontSize: 13, fontWeight: 500, color: 'var(--danger)' }}>{parseError}</p>
               )}
 
-              {/* Info box */}
+              {/* Info */}
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 13, padding: '12px 13px', background: 'var(--muted)', borderRadius: 12 }}>
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--muted-fg)', marginTop: 1 }}>
                   <circle cx="12" cy="12" r="10"/>
                   <path d="M12 16v-4M12 8h.01"/>
                 </svg>
                 <div style={{ fontSize: 12, color: 'var(--muted-fg)', lineHeight: 1.5 }}>
-                  {inputMode === 'text'
-                    ? 'Sélectionne tout le texte de ton relevé en ligne et colle-le ici. Les doublons et paiements sont filtrés automatiquement.'
-                    : 'Les montants déjà importés sont ignorés automatiquement. L\'analyse des captures utilise l\'IA.'}
+                  Colle le texte de ton relevé, ou dépose une capture d'écran. Les doublons et paiements sont filtrés automatiquement.
                 </div>
               </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,application/pdf,image/*"
+                className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0]
+                  if (f) { setInputFile(f); setInputMode('file'); setParseError(null) }
+                  e.target.value = ''
+                }}
+              />
             </>
           ) : (
             <>

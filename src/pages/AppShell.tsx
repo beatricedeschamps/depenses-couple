@@ -64,6 +64,7 @@ export function AppShell() {
   const [importPdfOpen, setImportPdfOpen] = useState(false)
   const [plusMenuOpen, setPlusMenuOpen] = useState(false)
   const plusMenuRef = useRef<HTMLDivElement>(null)
+  const desktopPlusRef = useRef<HTMLDivElement>(null)
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024)
   useEffect(() => {
@@ -307,7 +308,7 @@ export function AppShell() {
           {/* Footer */}
           <div className="flex flex-col border-t pt-3" style={{ borderColor: 'var(--border)', gap: 6, marginTop: 'auto' }}>
             {/* Ajouter */}
-            <div className="relative">
+            <div ref={desktopPlusRef}>
               <button
                 onClick={() => setPlusMenuOpen(v => !v)}
                 className="flex items-center justify-center gap-2.5 w-full"
@@ -332,7 +333,7 @@ export function AppShell() {
                   onPonctuelle={() => { setPlusMenuOpen(false); setAddSheetOpen(true) }}
                   onImport={() => { setPlusMenuOpen(false); setImportPdfOpen(true) }}
                   onRecurrente={() => { setPlusMenuOpen(false); setAddRecurringOpen(true) }}
-                  popupPos={{ bottom: '110%', left: 0 }}
+                  anchorRef={desktopPlusRef}
                 />
               )}
             </div>
@@ -398,11 +399,11 @@ interface PlusMenuProps {
   onPonctuelle: () => void
   onImport: () => void
   onRecurrente: () => void
-  popupPos?: React.CSSProperties
+  anchorRef?: React.RefObject<HTMLDivElement | null>
   sheet?: boolean
 }
 
-function PlusMenu({ onClose, onPonctuelle, onImport, onRecurrente, popupPos, sheet }: PlusMenuProps) {
+function PlusMenu({ onClose, onPonctuelle, onImport, onRecurrente, anchorRef, sheet }: PlusMenuProps) {
   const actions = (
     <>
       <MenuAction
@@ -441,16 +442,19 @@ function PlusMenu({ onClose, onPonctuelle, onImport, onRecurrente, popupPos, she
     )
   }
 
+  // Desktop popover: use fixed positioning from anchor so it escapes
+  // the sidebar's overflow/stacking context and renders above all content.
+  const rect = anchorRef?.current?.getBoundingClientRect()
+  const fixedStyle: React.CSSProperties = rect
+    ? { bottom: window.innerHeight - rect.top + 8, left: rect.left }
+    : { bottom: 80, left: 12 }
+
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
-        className="absolute z-50 w-52 rounded-2xl border shadow-xl overflow-hidden"
-        style={{
-          background: 'var(--card)',
-          borderColor: 'var(--border)',
-          ...(popupPos ?? { bottom: '110%', left: '50%', transform: 'translateX(-50%)' }),
-        }}
+        className="fixed z-50 w-52 rounded-2xl border shadow-xl overflow-hidden"
+        style={{ background: 'var(--card)', borderColor: 'var(--border)', ...fixedStyle }}
       >
         {actions}
       </div>

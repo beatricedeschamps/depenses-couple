@@ -209,32 +209,68 @@ const FR_MONTHS_FULL: Record<string, number> = {
 // day · full-FR-month · description · optional-sign · amount (with optional thousands space) · $
 const LIEN_RE = /^(\d{1,2})\s+([A-Za-zÀ-ÿ]+)\s+(.*?)\s+(\+?[\d]+(?:\s\d{3})?,\d{2})\s*\$\s*$/
 
+// Desjardins category labels → app icon IDs (primary categorization source)
+const DESJARDINS_CAT_MAP: Record<string, string> = {
+  'épicerie': 'cart', 'épiceries': 'cart', 'supermarché': 'cart', 'supermarchés': 'cart',
+  'restaurant': 'coffee', 'restaurants': 'coffee', 'café': 'coffee', 'cafés': 'coffee', 'bar': 'coffee', 'bars': 'coffee',
+  'téléphone': 'bolt', 'télécommunications': 'bolt', 'services': 'bolt',
+  'transport': 'car', 'transports': 'car',
+  'voyage': 'plane', 'voyages': 'plane', 'hôtel': 'plane', 'hôtels': 'plane',
+  'santé': 'heart', 'soins de santé': 'heart', 'pharmacie': 'heart', 'pharmacies': 'heart', 'soins personnels': 'heart',
+  'sport': 'dumbbell', 'sports': 'dumbbell', 'loisirs': 'ticket', 'divertissement': 'ticket',
+  'éducation': 'book', 'livres': 'book',
+  'maison': 'home', 'ameublement': 'home', 'rénovation': 'home',
+  'vêtements': 'gift', 'habillement': 'gift', 'boutique': 'gift',
+  'animaux': 'paw',
+  'assurance': 'shield', 'assurances': 'shield',
+  'électronique': 'wrench', 'informatique': 'wrench', 'logiciels': 'wrench',
+}
+
 function parseDesjardinsText(
   raw: string,
   existing: ExistingExpense[],
   defaultPayer: Person,
+  categories: { id: string; icon: string }[],
 ): ParsedRow[] {
   const year = inferYear(raw)
+  const lines = raw.split('\n').map(l => l.trim())
   const results: ParsedRow[] = []
 
-  for (const line of raw.split('\n')) {
-    const trimmed = line.trim()
-    const m = trimmed.match(LIEN_RE)
-    if (!m) continue
+  // Collect all Lien lines with their positions
+  type LienMatch = { idx: number; day: number; month: number; description: string; amount: number }
+  const lienLines: LienMatch[] = []
 
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(LIEN_RE)
+    if (!m) continue
     const day = parseInt(m[1])
     const month = FR_MONTHS_FULL[m[2].toLowerCase()]
     if (!month) continue
-
-    const amountStr = m[4]
-    if (amountStr.startsWith('+')) continue // credit / payment
-
+    if (m[4].startsWith('+')) continue
     const description = m[3].replace(/\.\s*$/, '').trim()
-    if (!description || description.length < 2) continue
-    if (/^total$/i.test(description)) continue
-
-    const amount = parseFloat(amountStr.replace(/\s/g, '').replace(',', '.'))
+    if (!description || description.length < 2 || /^total$/i.test(description)) continue
+    const amount = parseFloat(m[4].replace(/\s/g, '').replace(',', '.'))
     if (isNaN(amount) || amount <= 0 || amount >= 100_000) continue
+    lienLines.push({ idx: i, day, month, description, amount })
+  }
+
+  for (let li = 0; li < lienLines.length; li++) {
+    const { idx, day, month, description, amount } = lienLines[li]
+
+    // Lines between the previous Lien line (exclusive) and this one contain
+    // the Desjardins category label, merchant name, and amount detail.
+    const searchStart = li > 0 ? lienLines[li - 1].idx + 1 : 0
+    const contextLines = lines.slice(searchStart, idx)
+
+    let categoryId: string | null = null
+    for (const ctxLine of contextLines) {
+      const icon = DESJARDINS_CAT_MAP[ctxLine.toLowerCase()]
+      if (icon) {
+        categoryId = categories.find(c => c.icon === icon)?.id ?? null
+        break
+      }
+    }
+    if (!categoryId) categoryId = autoAssignCategory(description, categories)
 
     const date = buildDate(year, month, day)
     const isDuplicate = existing.some(e =>
@@ -249,7 +285,7 @@ function parseDesjardinsText(
       description,
       amount,
       selected: !isDuplicate,
-      categoryId: null,
+      categoryId,
       payer: defaultPayer,
       split: 'half',
       isDuplicate,
@@ -421,8 +457,7 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
     setParseError(null)
     try {
       const existing = await fetchExisting()
-      const parsed = parseDesjardinsText(textInput, existing, defaultPayer)
-        .map(r => ({ ...r, categoryId: autoAssignCategory(r.description, categories) }))
+      const parsed = parseDesjardinsText(textInput, existing, defaultPayer, categories)
       if (parsed.length === 0) {
         setParseError("Aucune transaction détectée. Vérifie que le texte est bien copié depuis ton relevé en ligne.")
         return

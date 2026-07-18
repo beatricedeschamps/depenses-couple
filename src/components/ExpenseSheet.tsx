@@ -251,9 +251,14 @@ export function ExpenseSheet({ open, onClose, expense, onSaved }: ExpenseSheetPr
             />
           </div>
 
-          {/* Category — icon only */}
+          {/* Category — icon grid + selected name */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Catégorie</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold" style={{ color: 'var(--muted-fg)' }}>Catégorie</label>
+              {selectedCat && (
+                <span className="text-xs font-medium" style={{ color: 'var(--primary)' }}>{selectedCat.name}</span>
+              )}
+            </div>
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               {categories.map(cat => (
                 <button

@@ -406,6 +406,13 @@ function autoAssignCategory(
   return null
 }
 
+const FR_MONTHS_LONG = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+
+function fmtDateShort(iso: string): string {
+  const [, m, d] = iso.split('-')
+  return `${parseInt(d)} ${FR_MONTHS_LONG[parseInt(m) - 1]}`
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} o`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`
@@ -849,6 +856,7 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
                   <ReviewRow
                     key={row.key}
                     row={row}
+                    categories={categories}
                     onChange={patch => setRows(prev => prev.map(r => r.key === row.key ? { ...r, ...patch } : r))}
                   />
                 ))}
@@ -894,9 +902,11 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
 
 function ReviewRow({
   row,
+  categories,
   onChange,
 }: {
   row: ParsedRow
+  categories: { id: string; name: string; icon: string }[]
   onChange: (patch: Partial<ParsedRow>) => void
 }) {
   return (
@@ -939,7 +949,9 @@ function ReviewRow({
           {row.description}
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--muted-fg)', marginTop: 1 }}>
-          {row.date}{row.isDuplicate ? ' · doublon probable' : ''}
+          {fmtDateShort(row.date)}
+          {row.categoryId ? ` · ${categories.find(c => c.id === row.categoryId)?.name ?? ''}` : ''}
+          {row.isDuplicate ? ' · doublon probable' : ''}
         </div>
       </div>
 

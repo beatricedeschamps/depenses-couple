@@ -76,6 +76,18 @@ export function AppShell() {
   const userInitial = profile?.name?.charAt(0).toUpperCase() ?? '?'
   const partnerName = partner?.name ?? (profile?.person === 'bea' ? 'Phil' : 'Béa')
 
+  // Lock body scroll whenever any overlay is open (prevents background scroll on iOS)
+  const anySheetOpen = addSheetOpen || addRecurringOpen || importPdfOpen || plusMenuOpen || showAccount
+  useEffect(() => {
+    if (!anySheetOpen) return
+    const y = window.scrollY
+    Object.assign(document.body.style, { overflow: 'hidden', position: 'fixed', top: `-${y}px`, width: '100%' })
+    return () => {
+      Object.assign(document.body.style, { overflow: '', position: '', top: '', width: '' })
+      window.scrollTo(0, y)
+    }
+  }, [anySheetOpen])
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     {
       id: 'releve',
@@ -217,21 +229,22 @@ export function AppShell() {
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
             </button>
-            {plusMenuOpen && (
-              <PlusMenu
-                onClose={() => setPlusMenuOpen(false)}
-                onPonctuelle={() => { setPlusMenuOpen(false); setAddSheetOpen(true) }}
-                onImport={() => { setPlusMenuOpen(false); setImportPdfOpen(true) }}
-                onRecurrente={() => { setPlusMenuOpen(false); setAddRecurringOpen(true) }}
-                sheet
-              />
-            )}
           </div>
           {tabs.slice(2).map(t => (
             <TabButton key={t.id} t={t} active={tab === t.id} onClick={() => setTab(t.id)} />
           ))}
         </div>
 
+        {/* PlusMenu rendu hors de la barre (évite le stacking context z-40 qui écrase le backdrop) */}
+        {plusMenuOpen && (
+          <PlusMenu
+            onClose={() => setPlusMenuOpen(false)}
+            onPonctuelle={() => { setPlusMenuOpen(false); setAddSheetOpen(true) }}
+            onImport={() => { setPlusMenuOpen(false); setImportPdfOpen(true) }}
+            onRecurrente={() => { setPlusMenuOpen(false); setAddRecurringOpen(true) }}
+            sheet
+          />
+        )}
         <ExpenseSheet open={addSheetOpen} onClose={() => setAddSheetOpen(false)} />
         <RecurringSheet open={addRecurringOpen} onClose={() => setAddRecurringOpen(false)} />
         <ImportPdfSheet open={importPdfOpen} onClose={() => setImportPdfOpen(false)} />

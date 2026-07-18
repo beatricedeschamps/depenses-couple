@@ -803,18 +803,45 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
             </>
           ) : (
             <>
-              {/* Count + retry */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div style={{ fontSize: 12.5, color: 'var(--muted-fg)' }}>
-                  {rows.length} transaction{rows.length !== 1 ? 's' : ''} trouvée{rows.length !== 1 ? 's' : ''}
-                </div>
-                <button
-                  onClick={() => { setStep('pick'); setRows([]) }}
-                  style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--primary)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
-                >
-                  Recommencer
-                </button>
-              </div>
+              {/* Count + select-all + retry */}
+              {(() => {
+                const allSelected = rows.length > 0 && rows.every(r => r.selected)
+                const someSelected = !allSelected && rows.some(r => r.selected)
+                const indeterminate = someSelected
+                const active = allSelected || indeterminate
+                function toggleAll() {
+                  setRows(prev => prev.map(r => ({ ...r, selected: !allSelected })))
+                }
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+                    <button
+                      onClick={toggleAll}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${active ? 'var(--primary)' : 'var(--border)'}`, background: active ? 'var(--primary)' : 'transparent', cursor: 'pointer', transition: 'background 0.15s, border-color 0.15s', padding: 0 }}
+                      aria-label="Tout sélectionner"
+                    >
+                      {allSelected && (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--primary-fg)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 6L9 17l-5-5"/>
+                        </svg>
+                      )}
+                      {indeterminate && (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--primary-fg)" strokeWidth="3.5" strokeLinecap="round">
+                          <path d="M5 12h14"/>
+                        </svg>
+                      )}
+                    </button>
+                    <div style={{ fontSize: 12.5, color: 'var(--muted-fg)', flex: 1 }}>
+                      {rows.length} transaction{rows.length !== 1 ? 's' : ''} trouvée{rows.length !== 1 ? 's' : ''}
+                    </div>
+                    <button
+                      onClick={() => { setStep('pick'); setRows([]) }}
+                      style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--primary)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                    >
+                      Recommencer
+                    </button>
+                  </div>
+                )
+              })()}
 
               {/* Row list */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>

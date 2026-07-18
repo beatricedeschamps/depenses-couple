@@ -210,17 +210,19 @@ const FR_MONTHS_FULL: Record<string, number> = {
 const LIEN_RE = /^(\d{1,2})\s+([A-Za-zÀ-ÿ]+)\s+(.*?)\s+(\+?[\d]+(?:\s\d{3})?,\d{2})\s*\$\s*$/
 
 // Desjardins category labels → app icon IDs (primary categorization source)
+// Conservative: only map categories we're confident about; uncertain ones
+// (Vêtements, Boutiques, Soins personnels…) are left unmapped so they fall
+// through to keyword matching or remain uncategorized.
 const DESJARDINS_CAT_MAP: Record<string, string> = {
   'épicerie': 'cart', 'épiceries': 'cart', 'supermarché': 'cart', 'supermarchés': 'cart',
-  'restaurant': 'coffee', 'restaurants': 'coffee', 'café': 'coffee', 'cafés': 'coffee', 'bar': 'coffee', 'bars': 'coffee',
+  'restaurant': 'coffee', 'restaurants': 'coffee', 'café': 'coffee', 'cafés': 'coffee',
   'téléphone': 'bolt', 'télécommunications': 'bolt', 'services': 'bolt',
   'transport': 'car', 'transports': 'car',
-  'voyage': 'plane', 'voyages': 'plane', 'hôtel': 'plane', 'hôtels': 'plane',
-  'santé': 'heart', 'soins de santé': 'heart', 'pharmacie': 'heart', 'pharmacies': 'heart', 'soins personnels': 'heart',
+  'voyage': 'plane', 'voyages': 'plane',
+  'santé': 'heart', 'soins de santé': 'heart', 'pharmacie': 'heart', 'pharmacies': 'heart',
   'sport': 'dumbbell', 'sports': 'dumbbell', 'loisirs': 'ticket', 'divertissement': 'ticket',
-  'éducation': 'book', 'livres': 'book',
+  'éducation': 'book',
   'maison': 'home', 'ameublement': 'home', 'rénovation': 'home',
-  'vêtements': 'gift', 'habillement': 'gift', 'boutique': 'gift',
   'animaux': 'paw',
   'assurance': 'shield', 'assurances': 'shield',
   'électronique': 'wrench', 'informatique': 'wrench', 'logiciels': 'wrench',
@@ -389,8 +391,7 @@ const CAT_RULES: [string[], string][] = [
   [['assurance', 'intact', 'la capitale', 'desjardins assurances'], 'shield'],
   // Animaux
   [['vétérinaire', 'veto', 'animalerie', 'petsmart', 'global pet', 'mondou'], 'paw'],
-  // Vêtements & shopping
-  [['zara', 'h&m', 'simons', 'aritzia', 'winners', 'reitmans', 'ardène', 'aldo', 'le château', 'eva b', 'friperie', 'renaissance', 'seconde main'], 'gift'],
+  // Vêtements & shopping — trop ambigu pour assigner automatiquement
 ]
 
 function autoAssignCategory(

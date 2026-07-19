@@ -472,6 +472,10 @@ export function ImportPdfSheet({ open, onClose, onSaved }: ImportPdfSheetProps) 
   useEffect(() => {
     if (!open || step !== 'pick' || inputMode !== null) return
     function onPaste(e: ClipboardEvent) {
+      // preventDefault stops the browser from also inserting the clipboard text
+      // into whatever element focuses after React re-renders (which would double
+      // the content via onChange on the textarea that mounts with autoFocus).
+      e.preventDefault()
       const items = e.clipboardData?.items
       if (items) {
         for (let i = 0; i < items.length; i++) {
